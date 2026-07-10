@@ -14,7 +14,7 @@ export default async function NewInvoicePage({
   const [jobCards, estimates, selectedEstimate] = await Promise.all([
     prisma.jobCard.findMany({ include: { customer: true, vehicle: true }, orderBy: { createdAt: "desc" } }),
     prisma.estimate.findMany({ orderBy: { createdAt: "desc" } }),
-    params.estimateId ? prisma.estimate.findUnique({ where: { id: params.estimateId } }) : null,
+    params.estimateId ? prisma.estimate.findUnique({ where: { id: params.estimateId }, include: { items: true } }) : null,
   ]);
 
   const selected = selectedEstimate
@@ -23,6 +23,7 @@ export default async function NewInvoicePage({
         estimateNumber: selectedEstimate.estimateNumber,
         jobCardId: selectedEstimate.jobCardId,
         totalAmount: selectedEstimate.totalAmount,
+        items: selectedEstimate.items,
       }
     : null;
 

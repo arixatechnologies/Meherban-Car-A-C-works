@@ -95,7 +95,7 @@ export default async function JobCardsPage({
                 <Badge key="status" value={jobCard.status} />,
                 <RowActionMenu
                   key="action"
-                  previewHref={`/job-cards/${jobCard.id}/print`}
+                  previewHref={`/job-cards/${jobCard.id}`}
                   whatsappHref={createWhatsAppLink(jobCard.customer.whatsapp || jobCard.customer.mobile, message)}
                   deleteAction={deleteJobCard.bind(null, jobCard.id)}
                   deleteDisabled={!canDelete || hasLinkedRecords}

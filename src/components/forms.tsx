@@ -1,5 +1,4 @@
 import {
-  estimateStatuses,
   inspectionStatuses,
   itemCategories,
   jobCardStatuses,
@@ -56,6 +55,7 @@ type EstimateOption = {
   estimateNumber: string;
   jobCardId: string;
   totalAmount: Decimalish;
+  items?: LineItem[];
 };
 
 type InvoiceOption = {
@@ -86,7 +86,7 @@ function valueOf(value: Decimalish | null | undefined) {
 
 function lineRows(items: LineItem[] = []) {
   const rows = [...items];
-  while (rows.length < 5) {
+  while (rows.length < 10) {
     rows.push({ description: "", category: "SERVICE", quantity: "", unitPrice: "" });
   }
   return rows;
@@ -529,7 +529,7 @@ export function LineItemsEditor({ items }: { items?: LineItem[] }) {
   return (
     <div className="grid gap-3">
       <div className="hidden grid-cols-[1.5fr_160px_120px_140px] gap-3 text-xs font-semibold uppercase tracking-wide text-slate-500 lg:grid">
-        <span>Description</span>
+        <span>Part / Service</span>
         <span>Category</span>
         <span>Quantity</span>
         <span>Unit price</span>
@@ -546,8 +546,6 @@ export function LineItemsEditor({ items }: { items?: LineItem[] }) {
           </select>
           <input
             name="itemQuantity"
-            type="number"
-            step="0.01"
             defaultValue={valueOf(item.quantity)}
             placeholder="Qty"
             className={inputClass}
@@ -585,10 +583,21 @@ export function EstimateForm({
   selectedJobCardId?: string;
 }) {
   const action = saveEstimate.bind(null, estimate?.id ?? null);
+  const lockedJobCardId = estimate?.jobCardId ?? selectedJobCardId ?? "";
+  const lockedJobCard = jobCards.find((jobCard) => jobCard.id === lockedJobCardId);
 
   return (
     <form action={action} className="grid gap-5">
-      <div className="grid gap-4 lg:grid-cols-3">
+      <input type="hidden" name="status" value={estimate?.status ?? "DRAFT"} />
+      <input type="hidden" name="problemSummary" value={estimate?.problemSummary ?? ""} />
+      <input type="hidden" name="validTill" value={toDateInput(estimate?.validTill)} />
+
+      {lockedJobCardId ? (
+        <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">
+          <input type="hidden" name="jobCardId" value={lockedJobCardId} />
+          Job Card: {lockedJobCard ? `${lockedJobCard.jobCardNumber} - ${lockedJobCard.vehicle.vehicleNumber} - ${lockedJobCard.customer.name}` : lockedJobCardId}
+        </div>
+      ) : (
         <Field labelText="Related job card">
           <select name="jobCardId" required defaultValue={estimate?.jobCardId ?? selectedJobCardId ?? ""} className={inputClass}>
             <option value="">Select job card</option>
@@ -599,22 +608,8 @@ export function EstimateForm({
             ))}
           </select>
         </Field>
-        <Field labelText="Valid till">
-          <input name="validTill" type="date" defaultValue={toDateInput(estimate?.validTill)} className={inputClass} />
-        </Field>
-        <Field labelText="Status">
-          <select name="status" defaultValue={estimate?.status ?? "DRAFT"} className={inputClass}>
-            {estimateStatuses.map((status) => (
-              <option key={status} value={status}>
-                {label(status)}
-              </option>
-            ))}
-          </select>
-        </Field>
-      </div>
-      <Field labelText="Problem summary">
-        <textarea name="problemSummary" required defaultValue={estimate?.problemSummary ?? ""} className={textareaClass} />
-      </Field>
+      )}
+
       <LineItemsEditor items={estimate?.items} />
       <div className="grid gap-4 lg:grid-cols-2">
         <Field labelText="Discount">
@@ -658,40 +653,61 @@ export function InvoiceForm({
   selectedJobCardId?: string;
 }) {
   const action = saveInvoice.bind(null, invoice?.id ?? null);
+  const lockedJobCardId = invoice?.jobCardId ?? selectedEstimate?.jobCardId ?? selectedJobCardId ?? "";
+  const lockedEstimateId = invoice?.estimateId ?? selectedEstimate?.id ?? "";
+  const lockedJobCard = jobCards.find((jobCard) => jobCard.id === lockedJobCardId);
 
   return (
     <form action={action} className="grid gap-5">
       <div className="grid gap-4 lg:grid-cols-3">
         <Field labelText="Job card">
-          <select
-            name="jobCardId"
-            required
-            defaultValue={invoice?.jobCardId ?? selectedEstimate?.jobCardId ?? selectedJobCardId ?? ""}
-            className={inputClass}
-          >
-            <option value="">Select job card</option>
-            {jobCards.map((jobCard) => (
-              <option key={jobCard.id} value={jobCard.id}>
-                {jobCard.jobCardNumber} - {jobCard.vehicle.vehicleNumber}
-              </option>
-            ))}
-          </select>
+          {lockedJobCardId ? (
+            <>
+              <input type="hidden" name="jobCardId" value={lockedJobCardId} />
+              <div className="grid h-11 items-center rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-700">
+                {lockedJobCard ? `${lockedJobCard.jobCardNumber} - ${lockedJobCard.vehicle.vehicleNumber}` : lockedJobCardId}
+              </div>
+            </>
+          ) : (
+            <select
+              name="jobCardId"
+              required
+              defaultValue={invoice?.jobCardId ?? selectedEstimate?.jobCardId ?? selectedJobCardId ?? ""}
+              className={inputClass}
+            >
+              <option value="">Select job card</option>
+              {jobCards.map((jobCard) => (
+                <option key={jobCard.id} value={jobCard.id}>
+                  {jobCard.jobCardNumber} - {jobCard.vehicle.vehicleNumber}
+                </option>
+              ))}
+            </select>
+          )}
         </Field>
         <Field labelText="Estimate">
-          <select name="estimateId" defaultValue={invoice?.estimateId ?? selectedEstimate?.id ?? ""} className={inputClass}>
-            <option value="">Skipped</option>
-            {estimates.map((estimate) => (
-              <option key={estimate.id} value={estimate.id}>
-                {estimate.estimateNumber} - {formatMoney(estimate.totalAmount)}
-              </option>
-            ))}
-          </select>
+          {lockedEstimateId ? (
+            <>
+              <input type="hidden" name="estimateId" value={lockedEstimateId} />
+              <div className="grid h-11 items-center rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-700">
+                {selectedEstimate ? `${selectedEstimate.estimateNumber} - ${formatMoney(selectedEstimate.totalAmount)}` : lockedEstimateId}
+              </div>
+            </>
+          ) : (
+            <select name="estimateId" defaultValue={invoice?.estimateId ?? selectedEstimate?.id ?? ""} className={inputClass}>
+              <option value="">Skipped</option>
+              {estimates.map((estimate) => (
+                <option key={estimate.id} value={estimate.id}>
+                  {estimate.estimateNumber} - {formatMoney(estimate.totalAmount)}
+                </option>
+              ))}
+            </select>
+          )}
         </Field>
         <Field labelText="Delivery status">
           <input name="deliveryStatus" defaultValue={invoice?.deliveryStatus ?? "Pending"} className={inputClass} />
         </Field>
       </div>
-      <LineItemsEditor items={invoice?.items} />
+      <LineItemsEditor items={invoice?.items ?? selectedEstimate?.items} />
       <div className="grid gap-4 lg:grid-cols-3">
         <Field labelText="Discount">
           <input name="discount" type="number" step="0.01" defaultValue={valueOf(invoice?.discount)} className={inputClass} />

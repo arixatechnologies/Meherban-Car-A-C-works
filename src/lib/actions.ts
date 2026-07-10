@@ -261,7 +261,7 @@ function parseLineItems(formData: FormData) {
         typeof categories[index] === "string"
           ? (categories[index] as ItemCategory)
           : ItemCategory.SERVICE,
-      quantity: decimal(typeof quantities[index] === "string" ? quantities[index] : "0"),
+      quantity: looseDecimal(typeof quantities[index] === "string" ? quantities[index] : "0"),
       unitPrice: decimal(typeof unitPrices[index] === "string" ? unitPrices[index] : "0"),
     }))
     .filter((item) => item.description)
@@ -609,6 +609,10 @@ export async function saveEstimate(id: string | null, formData: FormData) {
   const totalAmount = nonNegative(subtotal.sub(discount));
   const balanceAmount = nonNegative(totalAmount.sub(advanceReceived));
   const status = (str(formData, "status") || "DRAFT") as EstimateStatus;
+  const problemSummary =
+    optional(str(formData, "problemSummary")) ||
+    [...jobCard.complaints, jobCard.customComplaint].filter(Boolean).join(", ") ||
+    "Estimation prepared from job card.";
 
   const data = {
     jobCardId,
@@ -616,7 +620,7 @@ export async function saveEstimate(id: string | null, formData: FormData) {
     vehicleId: jobCard.vehicleId,
     validTill: optionalDate(str(formData, "validTill")),
     serviceAdvisorId: session.id,
-    problemSummary: str(formData, "problemSummary"),
+    problemSummary,
     discount,
     totalAmount,
     advanceReceived,
@@ -637,6 +641,7 @@ export async function saveEstimate(id: string | null, formData: FormData) {
     });
 
     revalidatePath(`/estimates/${id}`);
+    revalidatePath(`/job-cards/${jobCardId}`);
     redirect(`/estimates/${id}`);
   }
 
@@ -661,6 +666,7 @@ export async function saveEstimate(id: string | null, formData: FormData) {
   }
 
   revalidatePath("/estimates");
+  revalidatePath(`/job-cards/${jobCardId}`);
   redirect(`/estimates/${estimate.id}`);
 }
 
@@ -793,6 +799,8 @@ export async function saveInvoice(id: string | null, formData: FormData) {
       },
     });
     revalidatePath(`/invoices/${id}`);
+    revalidatePath(`/job-cards/${jobCardId}`);
+    if (estimateId) revalidatePath(`/estimates/${estimateId}`);
     redirect(`/invoices/${id}`);
   }
 
@@ -825,6 +833,8 @@ export async function saveInvoice(id: string | null, formData: FormData) {
   }
 
   revalidatePath("/invoices");
+  revalidatePath(`/job-cards/${jobCardId}`);
+  if (estimateId) revalidatePath(`/estimates/${estimateId}`);
   redirect(`/invoices/${invoice.id}`);
 }
 

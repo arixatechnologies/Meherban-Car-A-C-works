@@ -1,12 +1,10 @@
-import Link from "next/link";
+import { CreditCard, Edit, FileDown, MessageCircle } from "lucide-react";
 import { notFound } from "next/navigation";
-import { PaymentForm, WhatsAppSendForm } from "@/components/forms";
-import { WhatsAppActions } from "@/components/whatsapp-actions";
-import { Badge, Button, Card, CardBody, CardHeader, DataTable, DetailGrid, DetailItem, PageHeader } from "@/components/ui";
-import { createPaymentConfirmationLog, markVehicleDelivered, sendInvoiceReminder } from "@/lib/actions";
+import { InvoicePreview } from "@/components/invoice-preview";
+import { Button } from "@/components/ui";
 import { prisma } from "@/lib/db";
-import { formatDate, formatMoney } from "@/lib/format";
-import { invoiceGeneratedBody } from "@/lib/whatsapp";
+import { cn } from "@/lib/utils";
+import { createWhatsAppLink, invoiceGeneratedBody } from "@/lib/whatsapp";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -23,20 +21,10 @@ export default async function InvoiceDetailPage({
       customer: true,
       vehicle: true,
       jobCard: true,
-      estimate: true,
-      serviceAdvisor: true,
-      items: true,
-      payments: { orderBy: { paymentDate: "desc" } },
-      whatsappLogs: { orderBy: { createdAt: "desc" }, take: 6 },
     },
   });
 
   if (!invoice) notFound();
-
-  const invoicesForPayment = await prisma.invoice.findMany({
-    where: { id: invoice.id },
-    include: { customer: true },
-  });
 
   const message = invoiceGeneratedBody({
     customerId: invoice.customerId,
@@ -51,118 +39,37 @@ export default async function InvoiceDetailPage({
     balanceAmount: invoice.balanceAmount,
     trackingToken: invoice.jobCard.trackingToken,
   });
+  const externalButtonClass = cn(
+    "inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-800 transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2",
+  );
 
   return (
-    <div className="grid gap-6">
-      <PageHeader
-        title={invoice.invoiceNumber}
-        description={`${invoice.customer.name} - ${invoice.vehicle.vehicleNumber}`}
-        action={
-          <div className="flex flex-wrap gap-2">
-            <Button href={`/invoices/${invoice.id}/edit`} variant="secondary">Edit Invoice</Button>
-            <Button href={`/payments/new?invoiceId=${invoice.id}`} variant="secondary">Record Payment</Button>
-            <Button href={`/invoices/${invoice.id}/print`} variant="secondary">Print</Button>
-          </div>
-        }
-      />
-      <Card>
-        <CardHeader title="Invoice Summary" action={<Badge value={invoice.paymentStatus} />} />
-        <CardBody>
-          <DetailGrid>
-            <DetailItem labelText="Job card" value={<Link href={`/job-cards/${invoice.jobCardId}`} className="text-teal-700">{invoice.jobCard.jobCardNumber}</Link>} />
-            <DetailItem labelText="Estimate" value={invoice.estimate ? <Link href={`/estimates/${invoice.estimateId}`} className="text-teal-700">{invoice.estimate.estimateNumber}</Link> : "Skipped"} />
-            <DetailItem labelText="Date" value={formatDate(invoice.invoiceDate)} />
-            <DetailItem labelText="Customer" value={invoice.customer.name} />
-            <DetailItem labelText="Vehicle" value={invoice.vehicle.vehicleNumber} />
-            <DetailItem labelText="Service advisor" value={invoice.serviceAdvisor?.name} />
-            <DetailItem labelText="Grand total" value={formatMoney(invoice.totalAmount)} />
-            <DetailItem labelText="Paid amount" value={formatMoney(invoice.paidAmount)} />
-            <DetailItem labelText="Balance amount" value={formatMoney(invoice.balanceAmount)} />
-            <DetailItem labelText="Delivery status" value={invoice.deliveryStatus} />
-            <DetailItem labelText="Notes" value={invoice.notes} />
-          </DetailGrid>
-        </CardBody>
-      </Card>
-
-      <Card>
-        <CardHeader title="Service / Parts / Labour" />
-        <CardBody>
-          <DataTable
-            headers={["Description", "Category", "Quantity", "Unit Price", "Amount"]}
-            empty="No invoice items."
-            rows={invoice.items.map((item) => [
-              item.description,
-              item.category,
-              item.quantity.toString(),
-              formatMoney(item.unitPrice),
-              formatMoney(item.amount),
-            ])}
-          />
-        </CardBody>
-      </Card>
-
-      <div className="grid gap-6 xl:grid-cols-2">
-        <Card>
-          <CardHeader title="Payments" />
-          <CardBody className="grid gap-5">
-            <PaymentForm invoices={invoicesForPayment} selectedInvoiceId={invoice.id} />
-            <DataTable
-              headers={["Date", "Amount", "Mode", "Reference", "Notes"]}
-              empty="No payments recorded."
-              rows={invoice.payments.map((payment) => [
-                formatDate(payment.paymentDate),
-                formatMoney(payment.amount),
-                payment.mode,
-                payment.referenceNumber ?? "-",
-                payment.notes ?? "-",
-              ])}
-            />
-          </CardBody>
-        </Card>
-        <Card>
-          <CardHeader title="Invoice Actions" />
-          <CardBody className="grid gap-4">
-            <div className="flex flex-wrap gap-2">
-              <form action={sendInvoiceReminder.bind(null, invoice.id)}>
-                <Button type="submit" variant="secondary">Send Payment Reminder</Button>
-              </form>
-              <form action={createPaymentConfirmationLog.bind(null, invoice.id)}>
-                <Button type="submit" variant="secondary">Payment Confirmation</Button>
-              </form>
-              <form action={markVehicleDelivered.bind(null, invoice.jobCardId)}>
-                <Button type="submit" variant="secondary">Mark Vehicle Delivered</Button>
-              </form>
-            </div>
-            <WhatsAppActions mobileNumber={invoice.customer.whatsapp || invoice.customer.mobile} message={message} />
-            <WhatsAppSendForm
-              mobileNumber={invoice.customer.whatsapp || invoice.customer.mobile}
-              messageBody={message}
-              messageType="INVOICE_GENERATED"
-              returnTo={`/invoices/${invoice.id}`}
-              customerId={invoice.customerId}
-              jobCardId={invoice.jobCardId}
-              invoiceId={invoice.id}
-            />
-          </CardBody>
-        </Card>
+    <div className="grid gap-4">
+      <div className="no-print mx-auto flex w-full max-w-[1120px] flex-wrap items-center justify-end gap-2 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+        <Button href={`/payments/new?invoiceId=${invoice.id}`}>
+          <CreditCard className="h-4 w-4" />
+          Record Payment
+        </Button>
+        <Button href={`/invoices/${invoice.id}/print`} variant="secondary">
+          <FileDown className="h-4 w-4" />
+          Download PDF
+        </Button>
+        <a
+          href={createWhatsAppLink(invoice.customer.whatsapp || invoice.customer.mobile, message)}
+          target="_blank"
+          rel="noreferrer"
+          className={externalButtonClass}
+        >
+          <MessageCircle className="h-4 w-4" />
+          WhatsApp Share
+        </a>
+        <Button href={`/invoices/${invoice.id}/edit`} variant="secondary">
+          <Edit className="h-4 w-4" />
+          Edit
+        </Button>
       </div>
 
-      <Card>
-        <CardHeader title="WhatsApp Logs" />
-        <CardBody>
-          <DataTable
-            headers={["Type", "Method", "Status", "API Message ID", "Time"]}
-            empty="No WhatsApp logs."
-            rows={invoice.whatsappLogs.map((log) => [
-              log.messageType,
-              log.sendMethod,
-              <Badge key="status" value={log.status} />,
-              log.apiMessageId ?? "-",
-              formatDate(log.createdAt),
-            ])}
-          />
-        </CardBody>
-      </Card>
+      <InvoicePreview id={invoice.id} />
     </div>
   );
 }
