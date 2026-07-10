@@ -17,10 +17,10 @@ export function SubmitButton({
       type="submit"
       disabled={pending}
       className={cn(
-        "inline-flex h-10 items-center justify-center gap-2 rounded-lg px-4 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60",
-        variant === "primary" && "bg-teal-600 text-white hover:bg-teal-700",
-        variant === "secondary" && "border border-slate-200 bg-white text-slate-800 hover:bg-slate-50",
-        variant === "danger" && "bg-rose-600 text-white hover:bg-rose-700",
+        "inline-flex h-10 items-center justify-center gap-2 rounded-lg px-4 text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-60",
+        variant === "primary" && "bg-[#5a173b] text-white hover:bg-[#42102e]",
+        variant === "secondary" && "border border-[#e7c9c1] bg-[#fff8f2] text-[#4b1737] hover:bg-[#f4ded6]",
+        variant === "danger" && "bg-[#b63a58] text-white hover:bg-[#922642]",
       )}
     >
       {pending ? "Saving..." : children}

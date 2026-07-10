@@ -211,7 +211,7 @@ export async function JobCardPreview({ id }: { id: string }) {
   ];
 
   return (
-    <article className="print-page mx-auto max-w-[1120px] rounded-xl border border-[#d8a1b1] bg-white p-5 text-slate-950 shadow-sm print:rounded-none print:p-4">
+    <article className="document-lock-font print-page mx-auto max-w-[1120px] rounded-xl border border-[#d8a1b1] bg-white p-5 text-slate-950 shadow-sm print:rounded-none print:p-4">
       <header className="grid gap-5 md:grid-cols-[1.7fr_0.9fr]">
         <div className="grid items-center gap-4 sm:grid-cols-[135px_1fr]">
           <div className={`grid h-32 w-32 place-items-center overflow-hidden rounded-full border-4 ${maroonBorder} bg-white p-2`}>

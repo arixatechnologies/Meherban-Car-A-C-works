@@ -44,7 +44,7 @@ export default async function EstimateDetailPage({
     trackingToken: estimate.jobCard.trackingToken,
   });
   const externalButtonClass = cn(
-    "inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-800 transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2",
+    "inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-[#e7c9c1] bg-[#fff8f2] px-4 text-sm font-bold text-[#4b1737] transition hover:bg-[#f4ded6] focus:outline-none focus:ring-2 focus:ring-[#d97873] focus:ring-offset-2",
   );
   const existingInvoice = estimate.invoices[0];
   const canDelete = user.role === "ADMIN";
@@ -55,7 +55,7 @@ export default async function EstimateDetailPage({
 
   return (
     <div className="grid gap-4">
-      <div className="no-print mx-auto flex w-full max-w-[1120px] flex-wrap items-center justify-end gap-2 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+      <div className="no-print mx-auto flex w-full max-w-[1120px] flex-wrap items-center justify-end gap-2 rounded-xl border border-[#e7c9c1] bg-[#fffaf5] p-3 shadow-[0_10px_28px_rgba(90,23,59,0.08)]">
         <Button href={existingInvoice ? `/invoices/${existingInvoice.id}` : `/invoices/new?estimateId=${estimate.id}`}>
           <ReceiptText className="h-4 w-4" />
           {existingInvoice ? "View Invoice" : "Create Invoice"}

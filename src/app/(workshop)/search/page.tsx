@@ -70,7 +70,7 @@ export default async function SearchPage({
                 jobCard.customer.name,
                 jobCard.vehicle.vehicleNumber,
                 <Badge key="status" value={jobCard.status} />,
-                <Link key="view" href={`/job-cards/${jobCard.id}`} className="font-semibold text-teal-700">
+                <Link key="view" href={`/job-cards/${jobCard.id}`} className="font-bold text-[#5a173b] hover:underline">
                   View
                 </Link>,
               ]),
@@ -80,7 +80,7 @@ export default async function SearchPage({
                 estimate.customer.name,
                 estimate.vehicle.vehicleNumber,
                 formatMoney(estimate.totalAmount),
-                <Link key="view" href={`/estimates/${estimate.id}`} className="font-semibold text-teal-700">
+                <Link key="view" href={`/estimates/${estimate.id}`} className="font-bold text-[#5a173b] hover:underline">
                   View
                 </Link>,
               ]),
@@ -90,7 +90,7 @@ export default async function SearchPage({
                 invoice.customer.name,
                 invoice.vehicle.vehicleNumber,
                 formatMoney(invoice.totalAmount),
-                <Link key="view" href={`/invoices/${invoice.id}`} className="font-semibold text-teal-700">
+                <Link key="view" href={`/invoices/${invoice.id}`} className="font-bold text-[#5a173b] hover:underline">
                   View
                 </Link>,
               ]),

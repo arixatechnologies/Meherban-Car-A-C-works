@@ -50,7 +50,7 @@ function normalizeItem(item: EditableLineItem, index: number): Row {
 }
 
 const inputClass =
-  "h-10 w-full rounded-lg border border-cyan-200 bg-white px-3 text-sm font-semibold text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100";
+  "h-10 w-full rounded-lg border border-[#e2beb8] bg-[#fffaf7] px-3 text-sm font-semibold text-[#2f1233] outline-none transition placeholder:text-[#a88996] focus:border-[#d97873] focus:ring-2 focus:ring-[#f8cdbf]";
 
 export function LineItemsEditor({ items = [] }: { items?: EditableLineItem[] }) {
   const initialRows = items.length ? items.map(normalizeItem) : [];
@@ -93,13 +93,13 @@ export function LineItemsEditor({ items = [] }: { items?: EditableLineItem[] }) 
     const sectionRows = rows.filter((row) => row.category === category);
 
     return (
-      <section className="overflow-hidden rounded-lg border border-cyan-200 bg-white">
-        <div className="bg-cyan-50 px-4 py-3 text-xs font-black uppercase tracking-[0.18em] text-slate-950">
+      <section className="overflow-hidden rounded-lg border border-[#e7c9c1] bg-[#fffaf5]">
+        <div className="bg-[#f8e7df] px-4 py-3 text-xs font-black uppercase tracking-[0.18em] text-[#5a173b]">
           {title}
         </div>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[760px] border-collapse text-sm">
-            <thead className="bg-slate-50 text-xs uppercase text-slate-500">
+            <thead className="bg-[#fff1e8] text-xs uppercase text-[#a55667]">
               <tr>
                 <th className="px-3 py-2 text-left">#</th>
                 <th className="px-3 py-2 text-left">{category === "PARTS" ? "Part Name" : "Service Name"}</th>
@@ -114,8 +114,8 @@ export function LineItemsEditor({ items = [] }: { items?: EditableLineItem[] }) 
                 sectionRows.map((row, index) => {
                   const amount = numberFrom(row.quantity) * numberFrom(row.unitPrice);
                   return (
-                    <tr key={row.id} className="border-t border-slate-100">
-                      <td className="px-3 py-2 font-semibold text-slate-500">{index + 1}</td>
+                    <tr key={row.id} className="border-t border-[#f1ddd6]">
+                      <td className="px-3 py-2 font-bold text-[#a55667]">{index + 1}</td>
                       <td className="px-3 py-2">
                         <input type="hidden" name="itemCategory" value={row.category === "PARTS" ? "PARTS" : "LABOUR"} />
                         <input
@@ -144,12 +144,12 @@ export function LineItemsEditor({ items = [] }: { items?: EditableLineItem[] }) 
                           className={inputClass}
                         />
                       </td>
-                      <td className="px-3 py-2 text-right font-bold text-slate-950">Rs. {money(amount)}</td>
+                      <td className="px-3 py-2 text-right font-bold text-[#2f1233]">Rs. {money(amount)}</td>
                       <td className="px-3 py-2 text-right">
                         <button
                           type="button"
                           onClick={() => removeRow(row.id)}
-                          className="inline-flex h-9 items-center justify-center rounded-lg border border-rose-200 px-3 text-sm font-bold text-rose-700 hover:bg-rose-50"
+                          className="inline-flex h-9 items-center justify-center rounded-lg border border-[#efb6bd] px-3 text-sm font-bold text-[#9d2f47] hover:bg-[#fde2e2]"
                           aria-label={`Remove ${label(category)}`}
                         >
                           <Trash2 className="h-4 w-4" />
@@ -160,7 +160,7 @@ export function LineItemsEditor({ items = [] }: { items?: EditableLineItem[] }) 
                 })
               ) : (
                 <tr>
-                  <td colSpan={6} className="px-4 py-6 text-center text-sm italic text-slate-400">
+                  <td colSpan={6} className="px-4 py-6 text-center text-sm font-semibold italic text-[#a88996]">
                     {empty}
                   </td>
                 </tr>
@@ -168,16 +168,16 @@ export function LineItemsEditor({ items = [] }: { items?: EditableLineItem[] }) 
             </tbody>
           </table>
         </div>
-        <div className="flex items-center justify-between gap-3 border-t border-cyan-100 px-4 py-3">
+        <div className="flex items-center justify-between gap-3 border-t border-[#f1ddd6] px-4 py-3">
           <button
             type="button"
             onClick={() => addRow(category)}
-            className="inline-flex h-10 items-center gap-2 rounded-lg px-3 text-sm font-black text-cyan-700 hover:bg-cyan-50"
+            className="inline-flex h-10 items-center gap-2 rounded-lg px-3 text-sm font-black text-[#5a173b] hover:bg-[#fff1e8]"
           >
             <Plus className="h-4 w-4" />
             Add {category === "PARTS" ? "Part" : "Service"}
           </button>
-          <p className="text-sm font-black text-slate-700">Total: Rs. {money(category === "PARTS" ? totals.parts : totals.labour)}</p>
+          <p className="text-sm font-black text-[#4b1737]">Total: Rs. {money(category === "PARTS" ? totals.parts : totals.labour)}</p>
         </div>
       </section>
     );
@@ -187,10 +187,10 @@ export function LineItemsEditor({ items = [] }: { items?: EditableLineItem[] }) 
     <div className="grid gap-5">
       {section("PARTS", "Parts / Materials", "No parts added yet")}
       {section("LABOUR", "Labour / Services", "No services added yet")}
-      <div className="ml-auto grid w-full max-w-sm gap-2 rounded-lg border border-cyan-200 bg-cyan-50 p-4 text-sm">
+      <div className="ml-auto grid w-full max-w-sm gap-2 rounded-lg border border-[#e7c9c1] bg-[#f8e7df] p-4 text-sm font-semibold text-[#4b1737]">
         <div className="flex justify-between"><span>Parts Total</span><strong>Rs. {money(totals.parts)}</strong></div>
         <div className="flex justify-between"><span>Labour Total</span><strong>Rs. {money(totals.labour)}</strong></div>
-        <div className="flex justify-between border-t border-cyan-200 pt-2 text-base"><span>Grand Total</span><strong>Rs. {money(totals.parts + totals.labour)}</strong></div>
+        <div className="flex justify-between border-t border-[#d7a9ad] pt-2 text-base"><span>Grand Total</span><strong>Rs. {money(totals.parts + totals.labour)}</strong></div>
       </div>
     </div>
   );

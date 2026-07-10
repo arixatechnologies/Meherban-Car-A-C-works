@@ -43,7 +43,7 @@ export default async function PaymentsPage({
               formatMoney(payment.amount),
               payment.mode,
               payment.collectedBy?.name ?? "-",
-              <Link key="view" href={`/payments/${payment.id}`} className="font-semibold text-teal-700">
+              <Link key="view" href={`/payments/${payment.id}`} className="font-bold text-[#5a173b] hover:underline">
                 View
               </Link>,
             ])}

@@ -84,7 +84,7 @@ export default async function JobCardsPage({
               });
 
               return [
-                <Link key="no" href={`/job-cards/${jobCard.id}`} className="font-semibold text-teal-700">
+                <Link key="no" href={`/job-cards/${jobCard.id}`} className="font-bold text-[#5a173b] hover:underline">
                   {jobCard.jobCardNumber}
                 </Link>,
                 formatDateTime(jobCard.dateTime),

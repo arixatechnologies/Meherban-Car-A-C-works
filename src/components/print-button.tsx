@@ -5,7 +5,7 @@ export function PrintButton() {
     <button
       type="button"
       onClick={() => window.print()}
-      className="rounded-lg bg-slate-950 px-4 py-2 text-sm font-semibold text-white"
+      className="rounded-lg bg-[#5a173b] px-4 py-2 text-sm font-bold text-white"
     >
       Print
     </button>

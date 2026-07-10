@@ -22,9 +22,9 @@ function filterHref(type: DocumentType, q: string) {
 function iconActionClass(tone: "view" | "pdf" | "whatsapp") {
   return cn(
     "inline-flex h-9 w-9 items-center justify-center rounded-lg border text-sm transition focus:outline-none focus:ring-2 focus:ring-offset-2",
-    tone === "view" && "border-cyan-200 bg-cyan-50 text-cyan-800 hover:bg-cyan-100 focus:ring-cyan-500",
-    tone === "pdf" && "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 focus:ring-slate-500",
-    tone === "whatsapp" && "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 focus:ring-emerald-500",
+    tone === "view" && "border-[#d7a9ad] bg-[#fff1e8] text-[#5a173b] hover:bg-[#f4ded6] focus:ring-[#d97873]",
+    tone === "pdf" && "border-[#e7c9c1] bg-[#fffaf5] text-[#4b1737] hover:bg-[#f4ded6] focus:ring-[#d97873]",
+    tone === "whatsapp" && "border-[#c9d0b1] bg-[#e9ecd9] text-[#4e5d33] hover:bg-[#dfe5c8] focus:ring-[#9fa878]",
   );
 }
 
@@ -209,8 +209,8 @@ export default async function HomePage({
                 className={cn(
                   "inline-flex h-10 items-center rounded-lg px-4 text-sm font-black transition",
                   type === filter.value
-                    ? "bg-slate-950 text-white"
-                    : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50",
+                    ? "bg-[#5a173b] text-white"
+                    : "border border-[#e7c9c1] bg-[#fff8f2] text-[#4b1737] hover:bg-[#f4ded6]",
                 )}
               >
                 {filter.label}
@@ -222,7 +222,7 @@ export default async function HomePage({
             headers={["Document", "Customer", "Vehicle", "Date", "Status", "Actions"]}
             empty="No billing documents found."
             rows={documents.map((document) => [
-              <Link key="number" href={document.href} className="font-black text-cyan-800 hover:underline">
+              <Link key="number" href={document.href} className="font-black text-[#5a173b] hover:underline">
                 {document.number}
               </Link>,
               document.customerName,

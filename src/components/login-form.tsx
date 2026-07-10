@@ -22,7 +22,7 @@ export function LoginForm() {
 
   return (
     <form action={formAction} className="grid gap-4">
-      <label className="grid gap-2 text-sm font-bold text-slate-800">
+      <label className="grid gap-2 text-sm font-bold text-[#4b1737]">
         User Name
         <input
           {...register("email", { required: true })}
@@ -30,10 +30,10 @@ export function LoginForm() {
           type="email"
           autoComplete="username"
           placeholder="Enter email address"
-          className="h-11 rounded-lg border border-slate-300 px-3 text-sm text-slate-950 outline-none transition focus:border-[#8b0f2f] focus:ring-2 focus:ring-[#8b0f2f]/15"
+          className="h-11 rounded-lg border border-[#e2beb8] bg-[#fffaf7] px-3 text-sm font-semibold text-[#2f1233] outline-none transition placeholder:text-[#a88996] focus:border-[#d97873] focus:ring-2 focus:ring-[#f8cdbf]"
         />
       </label>
-      <label className="grid gap-2 text-sm font-bold text-slate-800">
+      <label className="grid gap-2 text-sm font-bold text-[#4b1737]">
         Password
         <input
           {...register("password", { required: true })}
@@ -41,16 +41,16 @@ export function LoginForm() {
           type="password"
           autoComplete="current-password"
           placeholder="Enter password"
-          className="h-11 rounded-lg border border-slate-300 px-3 text-sm text-slate-950 outline-none transition focus:border-[#8b0f2f] focus:ring-2 focus:ring-[#8b0f2f]/15"
+          className="h-11 rounded-lg border border-[#e2beb8] bg-[#fffaf7] px-3 text-sm font-semibold text-[#2f1233] outline-none transition placeholder:text-[#a88996] focus:border-[#d97873] focus:ring-2 focus:ring-[#f8cdbf]"
         />
       </label>
       {state.message ? (
-        <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm font-medium text-rose-700">{state.message}</p>
+        <p className="rounded-lg bg-[#fde2e2] px-3 py-2 text-sm font-bold text-[#9d2f47]">{state.message}</p>
       ) : null}
       <button
         type="submit"
         disabled={pending}
-        className="h-11 rounded-lg bg-[#8b0f2f] px-4 text-sm font-black uppercase tracking-wide text-white transition hover:bg-[#650820] disabled:opacity-60"
+        className="h-11 rounded-lg bg-[#5a173b] px-4 text-sm font-black uppercase tracking-wide text-white transition hover:bg-[#42102e] disabled:opacity-60"
       >
         {pending ? "Signing in..." : "Login"}
       </button>

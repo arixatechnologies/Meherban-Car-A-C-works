@@ -204,7 +204,7 @@ export function JobCardForm({
     })) ?? [];
 
   return (
-    <form action={action} className="mx-auto max-w-[1250px] rounded-xl border-2 border-[#d9a5b3] bg-white p-4 shadow-[0_10px_30px_rgba(139,15,47,0.15)]">
+    <form action={action} className="document-lock-font mx-auto max-w-[1250px] rounded-xl border-2 border-[#d9a5b3] bg-white p-4 shadow-[0_10px_30px_rgba(139,15,47,0.15)]">
       <input type="hidden" name="priority" value={jobCard?.priority ?? "NORMAL"} />
       <input type="hidden" name="status" value={jobCard?.status ?? "VEHICLE_RECEIVED"} />
       <input type="hidden" name="bayNumber" value={jobCard?.bayNumber ?? ""} />
@@ -500,8 +500,8 @@ export function InspectionForm({
   return (
     <form action={action} className="grid gap-3">
       {items.map((item) => (
-        <div key={item.id} className="grid gap-3 rounded-lg border border-slate-200 p-3 lg:grid-cols-[1fr_180px_1.4fr]">
-          <div className="text-sm font-semibold text-slate-900">{item.name}</div>
+        <div key={item.id} className="grid gap-3 rounded-lg border border-[#e7c9c1] bg-[#fffaf5] p-3 lg:grid-cols-[1fr_180px_1.4fr]">
+          <div className="text-sm font-bold text-[#2f1233]">{item.name}</div>
           <select name={`status-${item.id}`} defaultValue={item.status} className={inputClass}>
             {inspectionStatuses.map((status) => (
               <option key={status} value={status}>
@@ -546,7 +546,7 @@ export function EstimateForm({
       <input type="hidden" name="validTill" value={toDateInput(estimate?.validTill)} />
 
       {lockedJobCardId ? (
-        <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">
+        <div className="rounded-lg border border-[#e7c9c1] bg-[#fff1e8] px-4 py-3 text-sm font-bold text-[#4b1737]">
           <input type="hidden" name="jobCardId" value={lockedJobCardId} />
           Job Card: {lockedJobCard ? `${lockedJobCard.jobCardNumber} - ${lockedJobCard.vehicle.vehicleNumber} - ${lockedJobCard.customer.name}` : lockedJobCardId}
         </div>
@@ -618,7 +618,7 @@ export function InvoiceForm({
           {lockedJobCardId ? (
             <>
               <input type="hidden" name="jobCardId" value={lockedJobCardId} />
-              <div className="grid h-11 items-center rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-700">
+              <div className="grid h-11 items-center rounded-lg border border-[#e7c9c1] bg-[#fff1e8] px-3 text-sm font-bold text-[#4b1737]">
                 {lockedJobCard ? `${lockedJobCard.jobCardNumber} - ${lockedJobCard.vehicle.vehicleNumber}` : lockedJobCardId}
               </div>
             </>
@@ -642,7 +642,7 @@ export function InvoiceForm({
           {lockedEstimateId ? (
             <>
               <input type="hidden" name="estimateId" value={lockedEstimateId} />
-              <div className="grid h-11 items-center rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-700">
+              <div className="grid h-11 items-center rounded-lg border border-[#e7c9c1] bg-[#fff1e8] px-3 text-sm font-bold text-[#4b1737]">
                 {selectedEstimate || lockedEstimate
                   ? `${(selectedEstimate ?? lockedEstimate)?.estimateNumber} - ${formatMoney((selectedEstimate ?? lockedEstimate)?.totalAmount)}`
                   : lockedEstimateId}
@@ -837,7 +837,7 @@ export function SettingsForm({
           <input name="invoicePrefix" defaultValue={setting.invoicePrefix} className={inputClass} />
         </Field>
       </div>
-      <div className="grid gap-3 rounded-lg border border-slate-200 p-4 lg:grid-cols-2">
+      <div className="grid gap-3 rounded-lg border border-[#e7c9c1] bg-[#fffaf5] p-4 lg:grid-cols-2">
         {[
           ["enableWhatsAppApiSending", "Enable WhatsApp API sending", setting.enableWhatsAppApiSending],
           ["enableManualWhatsAppFallback", "Enable manual wa.me fallback", setting.enableManualWhatsAppFallback],
@@ -846,12 +846,12 @@ export function SettingsForm({
           ["autoSendInvoiceMessage", "Auto-send invoice message", setting.autoSendInvoiceMessage],
           ["autoSendDeliveryMessage", "Auto-send delivery message", setting.autoSendDeliveryMessage],
         ].map(([name, text, checked]) => (
-          <label key={String(name)} className="flex items-center gap-3 text-sm font-medium text-slate-700">
+          <label key={String(name)} className="flex items-center gap-3 text-sm font-bold text-[#4b1737]">
             <input
               type="checkbox"
               name={String(name)}
               defaultChecked={Boolean(checked)}
-              className="h-4 w-4 rounded border-slate-300 text-teal-600"
+              className="h-4 w-4 rounded border-[#d7a9ad] text-[#5a173b]"
             />
             {String(text)}
           </label>

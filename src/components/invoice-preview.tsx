@@ -43,7 +43,7 @@ export async function InvoicePreview({ id }: { id: string }) {
   const subtotal = invoice.items.reduce((sum, item) => sum + Number(item.amount), 0);
 
   return (
-    <article className="print-page mx-auto max-w-[1120px] rounded-xl border border-[#d8a1b1] bg-white p-5 text-slate-950 shadow-sm print:rounded-none print:p-4">
+    <article className="document-lock-font print-page mx-auto max-w-[1120px] rounded-xl border border-[#d8a1b1] bg-white p-5 text-slate-950 shadow-sm print:rounded-none print:p-4">
       <DocumentHeader
         title="Invoice Bill"
         infoTitle="Invoice Information"

@@ -1,4 +1,4 @@
-import { Badge, Card, CardBody, CardHeader, DataTable, PageHeader, StatCard } from "@/components/ui";
+import { Badge, Card, CardBody, CardHeader, DataTable, PageHeader, StatCard, inputClass } from "@/components/ui";
 import { prisma } from "@/lib/db";
 import { formatMoney } from "@/lib/format";
 
@@ -64,15 +64,15 @@ export default async function ReportsPage({
     <div className="grid gap-6">
       <PageHeader title="Reports" description="Date range and status filters apply to summary counts." />
       <Card>
-        <CardHeader title="Filters" action={<a href={csvHref} className="text-sm font-semibold text-teal-700">Export CSV</a>} />
+        <CardHeader title="Filters" action={<a href={csvHref} className="text-sm font-bold text-[#5a173b] hover:underline">Export CSV</a>} />
         <CardBody>
           <form className="grid gap-3 md:grid-cols-6">
-            <input name="from" type="date" defaultValue={from.toISOString().slice(0, 10)} className="h-10 rounded-lg border border-slate-300 px-3 text-sm" />
-            <input name="to" type="date" defaultValue={to.toISOString().slice(0, 10)} className="h-10 rounded-lg border border-slate-300 px-3 text-sm" />
-            <input name="status" placeholder="Status" defaultValue={params.status ?? ""} className="h-10 rounded-lg border border-slate-300 px-3 text-sm" />
-            <input name="technician" placeholder="Technician" defaultValue={params.technician ?? ""} className="h-10 rounded-lg border border-slate-300 px-3 text-sm" />
-            <input name="paymentStatus" placeholder="Payment status" defaultValue={params.paymentStatus ?? ""} className="h-10 rounded-lg border border-slate-300 px-3 text-sm" />
-            <button className="rounded-lg bg-teal-600 px-4 text-sm font-semibold text-white">Apply</button>
+            <input name="from" type="date" defaultValue={from.toISOString().slice(0, 10)} className={inputClass} />
+            <input name="to" type="date" defaultValue={to.toISOString().slice(0, 10)} className={inputClass} />
+            <input name="status" placeholder="Status" defaultValue={params.status ?? ""} className={inputClass} />
+            <input name="technician" placeholder="Technician" defaultValue={params.technician ?? ""} className={inputClass} />
+            <input name="paymentStatus" placeholder="Payment status" defaultValue={params.paymentStatus ?? ""} className={inputClass} />
+            <button className="rounded-lg bg-[#5a173b] px-4 text-sm font-bold text-white hover:bg-[#42102e]">Apply</button>
           </form>
         </CardBody>
       </Card>

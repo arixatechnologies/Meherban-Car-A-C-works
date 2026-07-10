@@ -13,7 +13,7 @@ export function CopyButton({ text }: { text: string }) {
         setCopied(true);
         window.setTimeout(() => setCopied(false), 1400);
       }}
-      className="inline-flex h-10 items-center justify-center rounded-lg border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-800 transition hover:bg-slate-50"
+      className="inline-flex h-10 items-center justify-center rounded-lg border border-[#e7c9c1] bg-[#fff8f2] px-4 text-sm font-bold text-[#4b1737] transition hover:bg-[#f4ded6]"
     >
       {copied ? "Copied" : "Copy message"}
     </button>

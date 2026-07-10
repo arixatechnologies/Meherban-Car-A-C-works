@@ -36,14 +36,14 @@ export default async function TrackingPage({
   const whatsappNumber = setting?.whatsappNumber || workshopPhone;
 
   return (
-    <main className="min-h-screen bg-slate-100">
-      <section className="bg-slate-950 px-4 py-8 text-white">
+    <main className="min-h-screen bg-[var(--background)]">
+      <section className="bg-[#2d1030] px-4 py-8 text-white">
         <div className="mx-auto max-w-5xl">
-          <p className="text-sm font-semibold uppercase tracking-wide text-teal-200">
+          <p className="text-sm font-bold uppercase tracking-wide text-[#f8cdbf]">
             {setting?.workshopName ?? "Meherban Car A/C Works"}
           </p>
-          <h1 className="mt-3 text-3xl font-bold">{jobCard.vehicle.vehicleNumber}</h1>
-          <p className="mt-2 text-slate-300">{jobCard.jobCardNumber} - {jobCard.customer.name}</p>
+          <h1 className="font-display mt-3 text-4xl font-bold">{jobCard.vehicle.vehicleNumber}</h1>
+          <p className="mt-2 font-semibold text-[#eadce9]">{jobCard.jobCardNumber} - {jobCard.customer.name}</p>
         </div>
       </section>
       <div className="mx-auto grid max-w-5xl gap-6 px-4 py-6">

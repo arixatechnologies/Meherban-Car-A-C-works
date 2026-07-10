@@ -25,9 +25,9 @@ export function ConfirmSubmitButton({
         }
       }}
       className={cn(
-        "inline-flex h-10 items-center justify-center gap-2 rounded-lg px-4 text-sm font-semibold transition focus:outline-none focus:ring-2 focus:ring-rose-500 focus:ring-offset-2",
-        "bg-rose-600 text-white hover:bg-rose-700",
-        "disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500",
+        "inline-flex h-10 items-center justify-center gap-2 rounded-lg px-4 text-sm font-bold transition focus:outline-none focus:ring-2 focus:ring-[#d97873] focus:ring-offset-2",
+        "bg-[#b63a58] text-white hover:bg-[#922642]",
+        "disabled:cursor-not-allowed disabled:bg-[#eadce9] disabled:text-[#8d6373]",
       )}
     >
       {children}
