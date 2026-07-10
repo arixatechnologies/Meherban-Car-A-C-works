@@ -1,6 +1,7 @@
 import { Calculator, Edit, FileDown, MessageCircle, Trash2 } from "lucide-react";
 import { notFound } from "next/navigation";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
+import { DocumentChain } from "@/components/document-chain";
 import { JobCardPreview } from "@/components/job-card-preview";
 import { Button } from "@/components/ui";
 import { deleteJobCard } from "@/lib/actions";
@@ -24,14 +25,16 @@ export default async function JobCardDetailPage({
     include: {
       customer: true,
       vehicle: true,
-      estimates: { select: { id: true }, take: 1 },
-      invoices: { select: { id: true }, take: 1 },
+      estimates: { select: { id: true, estimateNumber: true }, orderBy: { createdAt: "desc" }, take: 1 },
+      invoices: { select: { id: true, invoiceNumber: true }, orderBy: { invoiceDate: "desc" }, take: 1 },
     },
   });
 
   if (!jobCard) notFound();
 
   const canDelete = user.role === "ADMIN";
+  const latestEstimate = jobCard.estimates[0];
+  const latestInvoice = jobCard.invoices[0];
   const hasLinkedRecords = jobCard.estimates.length > 0 || jobCard.invoices.length > 0;
   const deleteDisabled = !canDelete || hasLinkedRecords;
   const deleteDisabledReason = !canDelete
@@ -53,9 +56,9 @@ export default async function JobCardDetailPage({
   return (
     <div className="grid gap-4">
       <div className="no-print mx-auto flex w-full max-w-[1120px] flex-wrap items-center justify-end gap-2 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
-        <Button href={`/estimates/new?jobCardId=${jobCard.id}`}>
+        <Button href={latestEstimate ? `/estimates/${latestEstimate.id}` : `/estimates/new?jobCardId=${jobCard.id}`}>
           <Calculator className="h-4 w-4" />
-          Create Estimation
+          {latestEstimate ? "View Estimation" : "Create Estimation"}
         </Button>
         <Button href={`/job-cards/${jobCard.id}/print`} variant="secondary">
           <FileDown className="h-4 w-4" />
@@ -81,6 +84,14 @@ export default async function JobCardDetailPage({
           </ConfirmSubmitButton>
         </form>
       </div>
+
+      <DocumentChain
+        items={[
+          { label: "Job Card", href: `/job-cards/${jobCard.id}`, number: jobCard.jobCardNumber },
+          { label: "Estimate", href: latestEstimate ? `/estimates/${latestEstimate.id}` : null, number: latestEstimate?.estimateNumber },
+          { label: "Invoice", href: latestInvoice ? `/invoices/${latestInvoice.id}` : null, number: latestInvoice?.invoiceNumber },
+        ]}
+      />
 
       <JobCardPreview id={jobCard.id} />
     </div>

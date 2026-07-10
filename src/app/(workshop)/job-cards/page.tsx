@@ -101,7 +101,7 @@ export default async function JobCardsPage({
                   deleteDisabled={!canDelete || hasLinkedRecords}
                   deleteDisabledReason={
                     !canDelete
-                      ? "Only admin can delete job cards."
+                    ? "Only admin can delete job cards."
                       : "Delete linked estimates and invoices first."
                   }
                 />,

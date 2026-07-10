@@ -17,7 +17,7 @@ export default async function NewInvoicePage({
     params.estimateId ? prisma.estimate.findUnique({ where: { id: params.estimateId }, include: { items: true } }) : null,
   ]);
 
-  const selected = selectedEstimate
+  const selectedEstimateOption = selectedEstimate
     ? {
         id: selectedEstimate.id,
         estimateNumber: selectedEstimate.estimateNumber,
@@ -36,7 +36,7 @@ export default async function NewInvoicePage({
           <InvoiceForm
             jobCards={jobCards}
             estimates={estimates}
-            selectedEstimate={selected}
+            selectedEstimate={selectedEstimateOption}
             selectedJobCardId={params.jobCardId}
           />
         </CardBody>

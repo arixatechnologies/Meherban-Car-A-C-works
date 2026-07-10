@@ -1,6 +1,5 @@
 import {
   inspectionStatuses,
-  itemCategories,
   jobCardStatuses,
   paymentModes,
   inspectionItemNames,
@@ -20,6 +19,7 @@ import { label } from "@/lib/utils";
 import { Field, inputClass, textareaClass } from "@/components/ui";
 import { SubmitButton } from "@/components/submit-button";
 import { JobCardPartsEditor } from "@/components/job-card-parts-editor";
+import { LineItemsEditor } from "@/components/line-items-editor";
 import { Fragment, type ReactNode } from "react";
 import Image from "next/image";
 import { MapPin, Phone } from "lucide-react";
@@ -82,14 +82,6 @@ const jobCardTextareaClass =
 function valueOf(value: Decimalish | null | undefined) {
   if (value == null) return "";
   return value.toString();
-}
-
-function lineRows(items: LineItem[] = []) {
-  const rows = [...items];
-  while (rows.length < 10) {
-    rows.push({ description: "", category: "SERVICE", quantity: "", unitPrice: "" });
-  }
-  return rows;
 }
 
 function FormSection({
@@ -525,45 +517,6 @@ export function InspectionForm({
   );
 }
 
-export function LineItemsEditor({ items }: { items?: LineItem[] }) {
-  return (
-    <div className="grid gap-3">
-      <div className="hidden grid-cols-[1.5fr_160px_120px_140px] gap-3 text-xs font-semibold uppercase tracking-wide text-slate-500 lg:grid">
-        <span>Part / Service</span>
-        <span>Category</span>
-        <span>Quantity</span>
-        <span>Unit price</span>
-      </div>
-      {lineRows(items).map((item, index) => (
-        <div key={index} className="grid gap-3 lg:grid-cols-[1.5fr_160px_120px_140px]">
-          <input name="itemDescription" defaultValue={item.description} placeholder="Description" className={inputClass} />
-          <select name="itemCategory" defaultValue={item.category} className={inputClass}>
-            {itemCategories.map((category) => (
-              <option key={category} value={category}>
-                {label(category)}
-              </option>
-            ))}
-          </select>
-          <input
-            name="itemQuantity"
-            defaultValue={valueOf(item.quantity)}
-            placeholder="Qty"
-            className={inputClass}
-          />
-          <input
-            name="itemUnitPrice"
-            type="number"
-            step="0.01"
-            defaultValue={valueOf(item.unitPrice)}
-            placeholder="Unit price"
-            className={inputClass}
-          />
-        </div>
-      ))}
-    </div>
-  );
-}
-
 export function EstimateForm({
   estimate,
   jobCards,
@@ -656,6 +609,7 @@ export function InvoiceForm({
   const lockedJobCardId = invoice?.jobCardId ?? selectedEstimate?.jobCardId ?? selectedJobCardId ?? "";
   const lockedEstimateId = invoice?.estimateId ?? selectedEstimate?.id ?? "";
   const lockedJobCard = jobCards.find((jobCard) => jobCard.id === lockedJobCardId);
+  const lockedEstimate = estimates.find((estimate) => estimate.id === lockedEstimateId);
 
   return (
     <form action={action} className="grid gap-5">
@@ -689,7 +643,9 @@ export function InvoiceForm({
             <>
               <input type="hidden" name="estimateId" value={lockedEstimateId} />
               <div className="grid h-11 items-center rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-700">
-                {selectedEstimate ? `${selectedEstimate.estimateNumber} - ${formatMoney(selectedEstimate.totalAmount)}` : lockedEstimateId}
+                {selectedEstimate || lockedEstimate
+                  ? `${(selectedEstimate ?? lockedEstimate)?.estimateNumber} - ${formatMoney((selectedEstimate ?? lockedEstimate)?.totalAmount)}`
+                  : lockedEstimateId}
               </div>
             </>
           ) : (

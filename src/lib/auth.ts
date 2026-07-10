@@ -17,8 +17,13 @@ export type SessionUser = {
 };
 
 function sessionSecret() {
+  const secret = process.env.NEXTAUTH_SECRET;
+  if (process.env.NODE_ENV === "production" && (!secret || secret.length < 32)) {
+    throw new Error("NEXTAUTH_SECRET must be set to at least 32 characters in production.");
+  }
+
   return new TextEncoder().encode(
-    process.env.NEXTAUTH_SECRET || "development-only-secret-change-before-deploy",
+    secret || "development-only-secret-change-before-deploy",
   );
 }
 
@@ -82,9 +87,9 @@ export async function setSessionCookie(user: SessionUser) {
     value: token,
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
+    sameSite: "strict",
     path: "/",
-    maxAge: 60 * 60 * 12,
+    maxAge: 60 * 60 * 8,
   });
 }
 
@@ -94,7 +99,7 @@ export async function clearSessionCookie() {
     value: "",
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
+    sameSite: "strict",
     path: "/",
     maxAge: 0,
   });

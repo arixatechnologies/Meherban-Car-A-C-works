@@ -15,29 +15,33 @@ export function LoginForm() {
   const [state, formAction, pending] = useActionState(loginAction, initialState);
   const { register } = useForm<LoginFields>({
     defaultValues: {
-      email: "admin@meherbanacworks.com",
-      password: "admin12345",
+      email: "",
+      password: "",
     },
   });
 
   return (
     <form action={formAction} className="grid gap-4">
-      <label className="grid gap-2 text-sm font-medium text-slate-700">
-        Email
+      <label className="grid gap-2 text-sm font-bold text-slate-800">
+        User Name
         <input
           {...register("email", { required: true })}
           required
           type="email"
-          className="h-11 rounded-lg border border-slate-300 px-3 text-sm text-slate-950 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100"
+          autoComplete="username"
+          placeholder="Enter email address"
+          className="h-11 rounded-lg border border-slate-300 px-3 text-sm text-slate-950 outline-none transition focus:border-[#8b0f2f] focus:ring-2 focus:ring-[#8b0f2f]/15"
         />
       </label>
-      <label className="grid gap-2 text-sm font-medium text-slate-700">
+      <label className="grid gap-2 text-sm font-bold text-slate-800">
         Password
         <input
           {...register("password", { required: true })}
           required
           type="password"
-          className="h-11 rounded-lg border border-slate-300 px-3 text-sm text-slate-950 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100"
+          autoComplete="current-password"
+          placeholder="Enter password"
+          className="h-11 rounded-lg border border-slate-300 px-3 text-sm text-slate-950 outline-none transition focus:border-[#8b0f2f] focus:ring-2 focus:ring-[#8b0f2f]/15"
         />
       </label>
       {state.message ? (
@@ -46,7 +50,7 @@ export function LoginForm() {
       <button
         type="submit"
         disabled={pending}
-        className="h-11 rounded-lg bg-teal-600 px-4 text-sm font-semibold text-white transition hover:bg-teal-700 disabled:opacity-60"
+        className="h-11 rounded-lg bg-[#8b0f2f] px-4 text-sm font-black uppercase tracking-wide text-white transition hover:bg-[#650820] disabled:opacity-60"
       >
         {pending ? "Signing in..." : "Login"}
       </button>

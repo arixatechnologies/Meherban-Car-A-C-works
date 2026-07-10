@@ -61,12 +61,14 @@ async function main() {
   await prisma.user.deleteMany();
   await prisma.workshopSetting.deleteMany();
 
-  const passwordHash = await bcrypt.hash("admin12345", 12);
+  const adminEmail = process.env.SEED_ADMIN_EMAIL || "meharbancaracwork@gmail.com";
+  const adminPassword = process.env.SEED_ADMIN_PASSWORD || "Meharban@786";
+  const passwordHash = await bcrypt.hash(adminPassword, 12);
 
   await prisma.user.create({
     data: {
-      name: "Admin",
-      email: "admin@meherbanacworks.com",
+      name: "Meherban",
+      email: adminEmail,
       passwordHash,
       role: UserRole.ADMIN,
     },
@@ -271,7 +273,7 @@ async function main() {
     });
   }
 
-  const estimateOne = await prisma.estimate.create({
+  await prisma.estimate.create({
     data: {
       estimateNumber: "EST-2026-0001",
       jobCardId: jobCards[0].id,
@@ -314,7 +316,7 @@ async function main() {
 
   await prisma.estimate.create({
     data: {
-      estimateNumber: "EST-2026-0002",
+      estimateNumber: "EST-2026-0003",
       jobCardId: jobCards[2].id,
       customerId: customers[2].id,
       vehicleId: vehicles[2].id,
@@ -346,9 +348,8 @@ async function main() {
 
   const invoice = await prisma.invoice.create({
     data: {
-      invoiceNumber: "INV-2026-0001",
+      invoiceNumber: "INV-2026-0002",
       jobCardId: jobCards[1].id,
-      estimateId: estimateOne.id,
       customerId: customers[1].id,
       vehicleId: vehicles[1].id,
       serviceAdvisorId: billing.id,
@@ -424,7 +425,7 @@ async function main() {
         invoiceId: invoice.id,
         mobileNumber: "919876543211",
         messageType: WhatsAppMessageType.INVOICE_GENERATED,
-        messageBody: "Hello Suresh Reddy, your service bill INV-2026-0001 has been generated.",
+        messageBody: "Hello Suresh Reddy, your service bill INV-2026-0002 has been generated.",
         sendMethod: WhatsAppSendMethod.MANUAL,
         status: WhatsAppStatus.MANUAL,
       },
@@ -440,7 +441,7 @@ async function main() {
     },
   });
 
-  console.log("Seed data created. Login with admin@meherbanacworks.com / admin12345");
+  console.log(`Seed data created. Admin login configured for ${adminEmail}.`);
 }
 
 main()

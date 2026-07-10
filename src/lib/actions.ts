@@ -39,6 +39,39 @@ export type AuthActionState = {
   message?: string;
 };
 
+const maxLoginAttempts = 5;
+const loginLockMs = 15 * 60 * 1000;
+const loginAttempts = new Map<string, { count: number; lockedUntil?: number }>();
+
+function loginAttemptKey(email: string) {
+  return email || "unknown";
+}
+
+function isLoginLocked(email: string) {
+  const key = loginAttemptKey(email);
+  const attempt = loginAttempts.get(key);
+  if (!attempt?.lockedUntil) return false;
+  if (attempt.lockedUntil <= Date.now()) {
+    loginAttempts.delete(key);
+    return false;
+  }
+  return true;
+}
+
+function recordFailedLogin(email: string) {
+  const key = loginAttemptKey(email);
+  const current = loginAttempts.get(key);
+  const count = (current?.count ?? 0) + 1;
+  loginAttempts.set(key, {
+    count,
+    lockedUntil: count >= maxLoginAttempts ? Date.now() + loginLockMs : undefined,
+  });
+}
+
+function clearFailedLogins(email: string) {
+  loginAttempts.delete(loginAttemptKey(email));
+}
+
 function str(formData: FormData, key: string) {
   const value = formData.get(key);
   return typeof value === "string" ? value.trim() : "";
@@ -152,24 +185,21 @@ async function nextJobCardNumber() {
   return `${prefix}${String(count + 1).padStart(4, "0")}`;
 }
 
-async function nextEstimateNumber() {
-  const { estimatePrefix } = await getSettingPrefixes();
-  const year = new Date().getFullYear();
-  const prefix = `${estimatePrefix}-${year}-`;
-  const count = await prisma.estimate.count({
-    where: { estimateNumber: { startsWith: prefix } },
-  });
-  return `${prefix}${String(count + 1).padStart(4, "0")}`;
+function documentNumberFromJobCard(jobCardNumber: string, prefix: string) {
+  const parts = jobCardNumber.split("-");
+  const sequence = parts.at(-1) || "0001";
+  const year = parts.at(-2) || String(new Date().getFullYear());
+  return `${prefix}-${year}-${sequence}`;
 }
 
-async function nextInvoiceNumber() {
+async function estimateNumberForJobCard(jobCardNumber: string) {
+  const { estimatePrefix } = await getSettingPrefixes();
+  return documentNumberFromJobCard(jobCardNumber, estimatePrefix);
+}
+
+async function invoiceNumberForJobCard(jobCardNumber: string) {
   const { invoicePrefix } = await getSettingPrefixes();
-  const year = new Date().getFullYear();
-  const prefix = `${invoicePrefix}-${year}-`;
-  const count = await prisma.invoice.count({
-    where: { invoiceNumber: { startsWith: prefix } },
-  });
-  return `${prefix}${String(count + 1).padStart(4, "0")}`;
+  return documentNumberFromJobCard(jobCardNumber, invoicePrefix);
 }
 
 function randomTrackingToken() {
@@ -285,15 +315,26 @@ export async function loginAction(
   const password = str(formData, "password");
 
   if (!email || !password) {
-    return { message: "Email and password are required." };
+    return { message: "User name and password are required." };
+  }
+
+  if (isLoginLocked(email)) {
+    return { message: "Too many login attempts. Try again after 15 minutes." };
+  }
+
+  if (password.length > 128) {
+    recordFailedLogin(email);
+    return { message: "Invalid user name or password." };
   }
 
   const user = await verifyLogin(email, password);
 
   if (!user) {
-    return { message: "Invalid login details." };
+    recordFailedLogin(email);
+    return { message: "Invalid user name or password." };
   }
 
+  clearFailedLogins(email);
   await setSessionCookie(user);
   redirect("/");
 }
@@ -640,15 +681,61 @@ export async function saveEstimate(id: string | null, formData: FormData) {
       },
     });
 
+    revalidatePath("/");
     revalidatePath(`/estimates/${id}`);
     revalidatePath(`/job-cards/${jobCardId}`);
     redirect(`/estimates/${id}`);
   }
 
+  const estimateNumber = await estimateNumberForJobCard(jobCard.jobCardNumber);
+  const existingEstimate = await prisma.estimate.findUnique({
+    where: { estimateNumber },
+    select: { id: true, jobCardId: true, status: true },
+  });
+
+  if (existingEstimate) {
+    if (existingEstimate.jobCardId !== jobCardId) {
+      throw new Error(`Estimate number ${estimateNumber} is already used by another job card.`);
+    }
+
+    await prisma.estimate.update({
+      where: { id: existingEstimate.id },
+      data: {
+        ...data,
+        items: {
+          deleteMany: {},
+          create: items,
+        },
+      },
+    });
+
+    if (status === EstimateStatus.SHARED) {
+      await prisma.jobCard.update({
+        where: { id: jobCardId },
+        data: { status: JobCardStatus.ESTIMATE_SHARED },
+      });
+    }
+
+    const setting = await prisma.workshopSetting.findUnique({ where: { singletonKey: "default" } });
+    if (
+      setting?.autoSendEstimateMessage &&
+      status === EstimateStatus.SHARED &&
+      existingEstimate.status !== EstimateStatus.SHARED
+    ) {
+      await sendEstimateSharedMessage(await estimateMessageContext(existingEstimate.id));
+    }
+
+    revalidatePath("/");
+    revalidatePath("/estimates");
+    revalidatePath(`/estimates/${existingEstimate.id}`);
+    revalidatePath(`/job-cards/${jobCardId}`);
+    redirect(`/estimates/${existingEstimate.id}`);
+  }
+
   const estimate = await prisma.estimate.create({
     data: {
       ...data,
-      estimateNumber: await nextEstimateNumber(),
+      estimateNumber,
       items: { create: items },
     },
   });
@@ -665,6 +752,7 @@ export async function saveEstimate(id: string | null, formData: FormData) {
     await sendEstimateSharedMessage(await estimateMessageContext(estimate.id));
   }
 
+  revalidatePath("/");
   revalidatePath("/estimates");
   revalidatePath(`/job-cards/${jobCardId}`);
   redirect(`/estimates/${estimate.id}`);
@@ -743,18 +831,18 @@ export async function sendEstimateReminder(id: string) {
 
 export async function saveInvoice(id: string | null, formData: FormData) {
   const session = await requireUser([UserRole.ADMIN, UserRole.BILLING_STAFF, UserRole.SERVICE_ADVISOR]);
-  const jobCardId = str(formData, "jobCardId");
   const estimateId = optional(str(formData, "estimateId"));
-  const jobCard = await prisma.jobCard.findUniqueOrThrow({
-    where: { id: jobCardId },
-    include: { customer: true, vehicle: true },
-  });
   const estimate = estimateId
     ? await prisma.estimate.findUnique({
         where: { id: estimateId },
         include: { items: true },
       })
     : null;
+  const jobCardId = str(formData, "jobCardId") || estimate?.jobCardId || "";
+  const jobCard = await prisma.jobCard.findUniqueOrThrow({
+    where: { id: jobCardId },
+    include: { customer: true, vehicle: true },
+  });
   const parsedItems = parseLineItems(formData);
   const items =
     parsedItems.length > 0
@@ -798,16 +886,62 @@ export async function saveInvoice(id: string | null, formData: FormData) {
         },
       },
     });
+    revalidatePath("/");
     revalidatePath(`/invoices/${id}`);
     revalidatePath(`/job-cards/${jobCardId}`);
     if (estimateId) revalidatePath(`/estimates/${estimateId}`);
     redirect(`/invoices/${id}`);
   }
 
+  const invoiceNumber = await invoiceNumberForJobCard(jobCard.jobCardNumber);
+  const existingInvoice = await prisma.invoice.findUnique({
+    where: { invoiceNumber },
+    select: { id: true, jobCardId: true },
+  });
+
+  if (existingInvoice) {
+    if (existingInvoice.jobCardId !== jobCardId) {
+      throw new Error(`Invoice number ${invoiceNumber} is already used by another job card.`);
+    }
+
+    await prisma.invoice.update({
+      where: { id: existingInvoice.id },
+      data: {
+        ...data,
+        items: {
+          deleteMany: {},
+          create: items,
+        },
+      },
+    });
+
+    await prisma.jobCard.update({
+      where: { id: jobCardId },
+      data: {
+        status:
+          balanceAmount.greaterThan(0) ? JobCardStatus.PAYMENT_PENDING : JobCardStatus.INVOICE_GENERATED,
+      },
+    });
+
+    if (estimateId) {
+      await prisma.estimate.update({
+        where: { id: estimateId },
+        data: { status: EstimateStatus.CONVERTED_TO_INVOICE },
+      });
+    }
+
+    revalidatePath("/");
+    revalidatePath("/invoices");
+    revalidatePath(`/invoices/${existingInvoice.id}`);
+    revalidatePath(`/job-cards/${jobCardId}`);
+    if (estimateId) revalidatePath(`/estimates/${estimateId}`);
+    redirect(`/invoices/${existingInvoice.id}`);
+  }
+
   const invoice = await prisma.invoice.create({
     data: {
       ...data,
-      invoiceNumber: await nextInvoiceNumber(),
+      invoiceNumber,
       items: { create: items },
     },
   });
@@ -832,6 +966,7 @@ export async function saveInvoice(id: string | null, formData: FormData) {
     await sendInvoiceGeneratedMessage(await invoiceMessageContext(invoice.id));
   }
 
+  revalidatePath("/");
   revalidatePath("/invoices");
   revalidatePath(`/job-cards/${jobCardId}`);
   if (estimateId) revalidatePath(`/estimates/${estimateId}`);
@@ -863,6 +998,7 @@ export async function deleteInvoice(id: string) {
   revalidatePath("/");
   revalidatePath("/invoices");
   revalidatePath(`/job-cards/${invoice.jobCardId}`);
+  if (invoice.estimateId) revalidatePath(`/estimates/${invoice.estimateId}`);
   redirect("/invoices");
 }
 
