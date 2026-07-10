@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { EstimateForm } from "@/components/forms";
-import { Card, CardBody, CardHeader, PageHeader } from "@/components/ui";
+import { PageHeader } from "@/components/ui";
 import { prisma } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
@@ -12,9 +12,17 @@ export default async function EditEstimatePage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [estimate, jobCards] = await Promise.all([
+  const [estimate, jobCards, setting] = await Promise.all([
     prisma.estimate.findUnique({ where: { id }, include: { items: true } }),
-    prisma.jobCard.findMany({ include: { customer: true, vehicle: true }, orderBy: { createdAt: "desc" } }),
+    prisma.jobCard.findMany({
+      include: {
+        customer: true,
+        vehicle: true,
+        serviceObservations: { orderBy: { sortOrder: "asc" } },
+      },
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.workshopSetting.findUnique({ where: { singletonKey: "default" } }),
   ]);
 
   if (!estimate) notFound();
@@ -22,12 +30,7 @@ export default async function EditEstimatePage({
   return (
     <div className="grid gap-6">
       <PageHeader title={`Edit ${estimate.estimateNumber}`} />
-      <Card>
-        <CardHeader title="Estimate details" />
-        <CardBody>
-          <EstimateForm estimate={estimate} jobCards={jobCards} />
-        </CardBody>
-      </Card>
+      <EstimateForm estimate={estimate} jobCards={jobCards} setting={setting} />
     </div>
   );
 }

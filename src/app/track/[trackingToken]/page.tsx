@@ -40,7 +40,7 @@ export default async function TrackingPage({
       <section className="bg-[#2d1030] px-4 py-8 text-white">
         <div className="mx-auto max-w-5xl">
           <p className="text-sm font-bold uppercase tracking-wide text-[#f8cdbf]">
-            {setting?.workshopName ?? "Meherban Car A/C Works"}
+            {setting?.workshopName ?? "Meharban Car A/C Works"}
           </p>
           <h1 className="font-display mt-3 text-4xl font-bold">{jobCard.vehicle.vehicleNumber}</h1>
           <p className="mt-2 font-semibold text-[#eadce9]">{jobCard.jobCardNumber} - {jobCard.customer.name}</p>
@@ -113,7 +113,7 @@ export default async function TrackingPage({
           <CardBody>
             <div className="flex flex-wrap gap-2">
               <Button href={`tel:${workshopPhone}`} variant="secondary">Call Workshop</Button>
-              <Button href={createWhatsAppLink(whatsappNumber, `Hello Meherban Car A/C Works, I want an update for ${jobCard.jobCardNumber}.`)} variant="secondary">
+              <Button href={createWhatsAppLink(whatsappNumber, `Hello Meharban Car A/C Works, I want an update for ${jobCard.jobCardNumber}.`)} variant="secondary">
                 WhatsApp
               </Button>
               {jobCard.status === "DELIVERED" ? (

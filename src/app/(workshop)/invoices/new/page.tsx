@@ -1,5 +1,5 @@
 import { InvoiceForm } from "@/components/forms";
-import { Card, CardBody, CardHeader, PageHeader } from "@/components/ui";
+import { PageHeader } from "@/components/ui";
 import { prisma } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
@@ -11,10 +11,18 @@ export default async function NewInvoicePage({
   searchParams: Promise<{ estimateId?: string; jobCardId?: string }>;
 }) {
   const params = await searchParams;
-  const [jobCards, estimates, selectedEstimate] = await Promise.all([
-    prisma.jobCard.findMany({ include: { customer: true, vehicle: true }, orderBy: { createdAt: "desc" } }),
+  const [jobCards, estimates, selectedEstimate, setting] = await Promise.all([
+    prisma.jobCard.findMany({
+      include: {
+        customer: true,
+        vehicle: true,
+        serviceObservations: { orderBy: { sortOrder: "asc" } },
+      },
+      orderBy: { createdAt: "desc" },
+    }),
     prisma.estimate.findMany({ orderBy: { createdAt: "desc" } }),
     params.estimateId ? prisma.estimate.findUnique({ where: { id: params.estimateId }, include: { items: true } }) : null,
+    prisma.workshopSetting.findUnique({ where: { singletonKey: "default" } }),
   ]);
 
   const selectedEstimateOption = selectedEstimate
@@ -23,6 +31,7 @@ export default async function NewInvoicePage({
         estimateNumber: selectedEstimate.estimateNumber,
         jobCardId: selectedEstimate.jobCardId,
         totalAmount: selectedEstimate.totalAmount,
+        advanceReceived: selectedEstimate.advanceReceived,
         items: selectedEstimate.items,
       }
     : null;
@@ -30,17 +39,13 @@ export default async function NewInvoicePage({
   return (
     <div className="grid gap-6">
       <PageHeader title="New Invoice" />
-      <Card>
-        <CardHeader title="Service bill details" />
-        <CardBody>
-          <InvoiceForm
-            jobCards={jobCards}
-            estimates={estimates}
-            selectedEstimate={selectedEstimateOption}
-            selectedJobCardId={params.jobCardId}
-          />
-        </CardBody>
-      </Card>
+      <InvoiceForm
+        jobCards={jobCards}
+        estimates={estimates}
+        selectedEstimate={selectedEstimateOption}
+        selectedJobCardId={params.jobCardId}
+        setting={setting}
+      />
     </div>
   );
 }

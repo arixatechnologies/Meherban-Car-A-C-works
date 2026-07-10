@@ -96,7 +96,7 @@ export default async function HomePage({
       sortDate: jobCard.dateTime,
       number: jobCard.jobCardNumber,
       href: `/job-cards/${jobCard.id}`,
-      printHref: `/job-cards/${jobCard.id}/print`,
+      pdfHref: `/job-cards/${jobCard.id}/pdf`,
       customerName: jobCard.customer.name,
       mobileNumber: jobCard.customer.whatsapp || jobCard.customer.mobile,
       vehicleNumber: jobCard.vehicle.vehicleNumber,
@@ -116,7 +116,7 @@ export default async function HomePage({
       sortDate: estimate.date,
       number: estimate.estimateNumber,
       href: `/estimates/${estimate.id}`,
-      printHref: `/estimates/${estimate.id}/print`,
+      pdfHref: `/estimates/${estimate.id}/pdf`,
       customerName: estimate.customer.name,
       mobileNumber: estimate.customer.whatsapp || estimate.customer.mobile,
       vehicleNumber: estimate.vehicle.vehicleNumber,
@@ -138,7 +138,7 @@ export default async function HomePage({
       sortDate: invoice.invoiceDate,
       number: invoice.invoiceNumber,
       href: `/invoices/${invoice.id}`,
-      printHref: `/invoices/${invoice.id}/print`,
+      pdfHref: `/invoices/${invoice.id}/pdf`,
       customerName: invoice.customer.name,
       mobileNumber: invoice.customer.whatsapp || invoice.customer.mobile,
       vehicleNumber: invoice.vehicle.vehicleNumber,
@@ -233,9 +233,9 @@ export default async function HomePage({
                 <Link href={document.href} className={iconActionClass("view")} title="View">
                   <Eye className="h-4 w-4" />
                 </Link>
-                <Link href={document.printHref} className={iconActionClass("pdf")} title="Download PDF">
+                <a href={document.pdfHref} download className={iconActionClass("pdf")} title="Download PDF">
                   <FileDown className="h-4 w-4" />
-                </Link>
+                </a>
                 <a
                   href={createWhatsAppLink(document.mobileNumber, document.message)}
                   target="_blank"

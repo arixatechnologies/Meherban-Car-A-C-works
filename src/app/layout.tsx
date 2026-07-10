@@ -20,7 +20,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Meherban Car A/C Works",
+  title: "Meharban Car A/C Works",
   description: "Digital job card and service management system",
 };
 

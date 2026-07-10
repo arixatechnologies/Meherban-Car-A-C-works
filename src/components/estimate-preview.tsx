@@ -33,13 +33,15 @@ export async function EstimatePreview({ id }: { id: string }) {
 
   if (!estimate) notFound();
 
-  const serviceAdvisorName = estimate.jobCard.serviceAdvisorName || estimate.serviceAdvisor?.name || "Meherban";
-  const workshopName = setting?.workshopName || "Meherban Car A/C Works";
+  const serviceAdvisorName = estimate.jobCard.serviceAdvisorName || estimate.serviceAdvisor?.name || "Meharban";
+  const workshopName = setting?.workshopName || "Meharban Car A/C Works";
   const complaints = [...estimate.jobCard.complaints, estimate.jobCard.customComplaint].filter(Boolean).join(", ");
   const partsItems = estimate.items.filter((item) => item.category === ItemCategory.PARTS || item.category === ItemCategory.OTHER);
   const labourItems = estimate.items.filter((item) => item.category === ItemCategory.SERVICE || item.category === ItemCategory.LABOUR);
   const partsTotal = partsItems.reduce((sum, item) => sum + Number(item.amount), 0);
   const labourTotal = labourItems.reduce((sum, item) => sum + Number(item.amount), 0);
+  const discountAmount = Number(estimate.discount);
+  const hasDiscount = discountAmount > 0;
   const allRows = [
     { heading: "Parts / Materials", icon: <Package className="h-5 w-5" />, items: partsItems },
     { heading: "Labour / Services", icon: <Wrench className="h-5 w-5" />, items: labourItems },
@@ -85,8 +87,8 @@ export async function EstimatePreview({ id }: { id: string }) {
               <th className="border border-[#ead0d8] px-2 py-2">Part / Service</th>
               <th className="border border-[#ead0d8] px-2 py-2">Description</th>
               <th className="border border-[#ead0d8] px-2 py-2">Qty</th>
-              <th className="border border-[#ead0d8] px-2 py-2">Unit Price (\u20b9)</th>
-              <th className="border border-[#ead0d8] px-2 py-2">Amount (\u20b9)</th>
+              <th className="border border-[#ead0d8] px-2 py-2">Unit Price (₹)</th>
+              <th className="border border-[#ead0d8] px-2 py-2">Amount (₹)</th>
             </tr>
           </thead>
           <tbody>
@@ -106,8 +108,10 @@ export async function EstimatePreview({ id }: { id: string }) {
                     return (
                       <tr key={item.id}>
                         <td className="border border-[#ead0d8] px-2 py-1.5 text-center">{rowNumber}</td>
-                        <td className="border border-[#ead0d8] px-2 py-1.5">{item.description}</td>
-                        <td className="border border-[#ead0d8] px-2 py-1.5">{item.category === ItemCategory.PARTS ? "Parts / Materials" : "Labour / Service"}</td>
+                        <td className="border border-[#ead0d8] px-2 py-1.5">{item.partService || item.description}</td>
+                        <td className="border border-[#ead0d8] px-2 py-1.5">
+                          {item.partService ? item.description : item.category === ItemCategory.PARTS ? "Parts / Materials" : "Labour / Service"}
+                        </td>
                         <td className="border border-[#ead0d8] px-2 py-1.5 text-center">{item.quantity.toString()}</td>
                         <td className="border border-[#ead0d8] px-2 py-1.5 text-right">{moneyText(item.unitPrice)}</td>
                         <td className="border border-[#ead0d8] px-2 py-1.5 text-right">{moneyText(item.amount)}</td>
@@ -127,24 +131,26 @@ export async function EstimatePreview({ id }: { id: string }) {
           </tbody>
           <tfoot>
             <tr>
-              <td className="border border-[#ead0d8] px-2 py-2" colSpan={3} rowSpan={5} />
-              <td className="border border-[#ead0d8] px-3 py-1.5 text-right font-bold text-[#7a0d2b]" colSpan={2}>Total Parts Amount (\u20b9)</td>
+              <td className="border border-[#ead0d8] px-2 py-2" colSpan={3} rowSpan={hasDiscount ? 5 : 4} />
+              <td className="border border-[#ead0d8] px-3 py-1.5 text-right font-bold text-[#7a0d2b]" colSpan={2}>Total Parts Amount (₹)</td>
               <td className="border border-[#ead0d8] px-3 py-1.5 text-right">{moneyText(partsTotal)}</td>
             </tr>
             <tr>
-              <td className="border border-[#ead0d8] px-3 py-1.5 text-right font-bold text-[#7a0d2b]" colSpan={2}>Total Labour Amount (\u20b9)</td>
+              <td className="border border-[#ead0d8] px-3 py-1.5 text-right font-bold text-[#7a0d2b]" colSpan={2}>Total Labour Amount (₹)</td>
               <td className="border border-[#ead0d8] px-3 py-1.5 text-right">{moneyText(labourTotal)}</td>
             </tr>
             <tr>
-              <td className="border border-[#ead0d8] px-3 py-1.5 text-right font-bold text-[#7a0d2b]" colSpan={2}>Sub Total (\u20b9)</td>
+              <td className="border border-[#ead0d8] px-3 py-1.5 text-right font-bold text-[#7a0d2b]" colSpan={2}>Sub Total (₹)</td>
               <td className="border border-[#ead0d8] px-3 py-1.5 text-right">{moneyText(partsTotal + labourTotal)}</td>
             </tr>
-            <tr>
-              <td className="border border-[#ead0d8] px-3 py-1.5 text-right font-bold text-[#7a0d2b]" colSpan={2}>Discount (\u20b9)</td>
-              <td className="border border-[#ead0d8] px-3 py-1.5 text-right">- {moneyText(estimate.discount)}</td>
-            </tr>
+            {hasDiscount ? (
+              <tr>
+                <td className="border border-[#ead0d8] px-3 py-1.5 text-right font-bold text-[#7a0d2b]" colSpan={2}>Discount (₹)</td>
+                <td className="border border-[#ead0d8] px-3 py-1.5 text-right">- {moneyText(estimate.discount)}</td>
+              </tr>
+            ) : null}
             <tr className={`${maroon} text-base font-black text-white`}>
-              <td className="border border-[#ead0d8] px-3 py-2 text-right uppercase" colSpan={2}>Grand Total (\u20b9)</td>
+              <td className="border border-[#ead0d8] px-3 py-2 text-right uppercase" colSpan={2}>Grand Total (₹)</td>
               <td className="border border-[#ead0d8] px-3 py-2 text-right">{moneyText(estimate.totalAmount)}</td>
             </tr>
           </tfoot>

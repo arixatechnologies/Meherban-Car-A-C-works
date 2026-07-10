@@ -7,7 +7,7 @@ import { redirect } from "next/navigation";
 import type { UserRole } from "@/generated/prisma/client";
 import { prisma } from "@/lib/db";
 
-export const sessionCookieName = "meherban_session";
+export const sessionCookieName = "meharban_session";
 
 export type SessionUser = {
   id: string;

@@ -34,8 +34,8 @@ export async function InvoicePreview({ id }: { id: string }) {
 
   if (!invoice) notFound();
 
-  const serviceAdvisorName = invoice.jobCard.serviceAdvisorName || invoice.serviceAdvisor?.name || "Meherban";
-  const workshopName = setting?.workshopName || "Meherban Car A/C Works";
+  const serviceAdvisorName = invoice.jobCard.serviceAdvisorName || invoice.serviceAdvisor?.name || "Meharban";
+  const workshopName = setting?.workshopName || "Meharban Car A/C Works";
   const complaints = [...invoice.jobCard.complaints, invoice.jobCard.customComplaint].filter(Boolean).join(", ");
   const paymentModes = invoice.payments.length
     ? Array.from(new Set(invoice.payments.map((payment) => label(payment.mode)))).join(" / ")
@@ -80,8 +80,8 @@ export async function InvoicePreview({ id }: { id: string }) {
               <th className="border border-[#ead0d8] px-2 py-2">Part / Service</th>
               <th className="border border-[#ead0d8] px-2 py-2">Description</th>
               <th className="border border-[#ead0d8] px-2 py-2">Qty.</th>
-              <th className="border border-[#ead0d8] px-2 py-2">Unit Price (\u20b9)</th>
-              <th className="border border-[#ead0d8] px-2 py-2">Amount (\u20b9)</th>
+              <th className="border border-[#ead0d8] px-2 py-2">Unit Price (₹)</th>
+              <th className="border border-[#ead0d8] px-2 py-2">Amount (₹)</th>
               <th className="border border-[#ead0d8] px-2 py-2">Remarks</th>
             </tr>
           </thead>
@@ -90,12 +90,12 @@ export async function InvoicePreview({ id }: { id: string }) {
               invoice.items.map((item, index) => (
                 <tr key={item.id}>
                   <td className="border border-[#ead0d8] px-2 py-1.5 text-center">{index + 1}</td>
-                  <td className="border border-[#ead0d8] px-2 py-1.5">{item.description}</td>
-                  <td className="border border-[#ead0d8] px-2 py-1.5">{label(item.category)}</td>
+                  <td className="border border-[#ead0d8] px-2 py-1.5">{item.partService || item.description}</td>
+                  <td className="border border-[#ead0d8] px-2 py-1.5">{item.partService ? item.description : label(item.category)}</td>
                   <td className="border border-[#ead0d8] px-2 py-1.5 text-center">{item.quantity.toString()}</td>
                   <td className="border border-[#ead0d8] px-2 py-1.5 text-right">{moneyText(item.unitPrice)}</td>
                   <td className="border border-[#ead0d8] px-2 py-1.5 text-right">{moneyText(item.amount)}</td>
-                  <td className="border border-[#ead0d8] px-2 py-1.5 text-center">{label(item.category)}</td>
+                  <td className="border border-[#ead0d8] px-2 py-1.5 text-center">{item.remarks || label(item.category)}</td>
                 </tr>
               ))
             ) : (
@@ -108,28 +108,20 @@ export async function InvoicePreview({ id }: { id: string }) {
           </tbody>
           <tfoot>
             <tr>
-              <td className="border border-[#ead0d8] px-2 py-2" colSpan={4} rowSpan={6} />
-              <td className="border border-[#ead0d8] px-3 py-1.5 text-right font-bold text-[#7a0d2b]" colSpan={2}>Sub Total (\u20b9)</td>
+              <td className="border border-[#ead0d8] px-2 py-2" colSpan={4} rowSpan={4} />
+              <td className="border border-[#ead0d8] px-3 py-1.5 text-right font-bold text-[#7a0d2b]" colSpan={2}>Sub Total (₹)</td>
               <td className="border border-[#ead0d8] px-3 py-1.5 text-right">{moneyText(subtotal)}</td>
             </tr>
-            <tr>
-              <td className="border border-[#ead0d8] px-3 py-1.5 text-right font-bold text-[#7a0d2b]" colSpan={2}>Discount (\u20b9)</td>
-              <td className="border border-[#ead0d8] px-3 py-1.5 text-right">{moneyText(invoice.discount)}</td>
-            </tr>
-            <tr>
-              <td className="border border-[#ead0d8] px-3 py-1.5 text-right font-bold text-[#7a0d2b]" colSpan={2}>GST (\u20b9)<br /><span className="text-[10px]">(Not Applicable)</span></td>
-              <td className="border border-[#ead0d8] px-3 py-1.5 text-right">0.00</td>
-            </tr>
             <tr className={`${maroon} text-base font-black text-white`}>
-              <td className="border border-[#ead0d8] px-3 py-2 text-right uppercase" colSpan={2}>Grand Total (\u20b9)</td>
+              <td className="border border-[#ead0d8] px-3 py-2 text-right uppercase" colSpan={2}>Grand Total (₹)</td>
               <td className="border border-[#ead0d8] px-3 py-2 text-right">{moneyText(invoice.totalAmount)}</td>
             </tr>
             <tr>
-              <td className="border border-[#ead0d8] px-3 py-1.5 text-right font-bold text-[#7a0d2b]" colSpan={2}>Advance Paid (\u20b9)</td>
+              <td className="border border-[#ead0d8] px-3 py-1.5 text-right font-bold text-[#7a0d2b]" colSpan={2}>Advance Paid (₹)</td>
               <td className="border border-[#ead0d8] px-3 py-1.5 text-right">{moneyText(invoice.paidAmount)}</td>
             </tr>
             <tr>
-              <td className="border border-[#ead0d8] px-3 py-1.5 text-right font-bold text-[#7a0d2b]" colSpan={2}>Balance Due (\u20b9)</td>
+              <td className="border border-[#ead0d8] px-3 py-1.5 text-right font-bold text-[#7a0d2b]" colSpan={2}>Balance Due (₹)</td>
               <td className="border border-[#ead0d8] px-3 py-1.5 text-right">{moneyText(invoice.balanceAmount)}</td>
             </tr>
           </tfoot>
@@ -141,7 +133,7 @@ export async function InvoicePreview({ id }: { id: string }) {
           <BadgeIndianRupee className="h-5 w-5" />
           Payment Details
         </div>
-        <dl className="grid gap-3 px-4 py-3 text-[12px] font-semibold md:grid-cols-4">
+        <dl className="grid gap-3 px-4 py-3 text-[12px] font-semibold sm:grid-cols-2 lg:grid-cols-4 print:grid-cols-2">
           <InfoRow labelText="Total Amount" value={moneyText(invoice.totalAmount)} />
           <InfoRow labelText="Paid Via" value={paymentModes} />
           <InfoRow labelText="Advance" value={moneyText(invoice.paidAmount)} />

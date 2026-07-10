@@ -67,7 +67,7 @@ async function main() {
 
   await prisma.user.create({
     data: {
-      name: "Meherban",
+      name: "Meharban",
       email: adminEmail,
       passwordHash,
       role: UserRole.ADMIN,
@@ -77,7 +77,7 @@ async function main() {
   const advisor = await prisma.user.create({
     data: {
       name: "Imran Khan",
-      email: "advisor@meherbanacworks.com",
+      email: "advisor@meharbanacworks.com",
       passwordHash,
       role: UserRole.SERVICE_ADVISOR,
     },
@@ -86,7 +86,7 @@ async function main() {
   const billing = await prisma.user.create({
     data: {
       name: "Billing Staff",
-      email: "billing@meherbanacworks.com",
+      email: "billing@meharbanacworks.com",
       passwordHash,
       role: UserRole.BILLING_STAFF,
     },
@@ -117,7 +117,7 @@ async function main() {
     data: {
       name: "Imran Khan",
       mobile: "9876543213",
-      email: "imran.staff@meherbanacworks.com",
+      email: "imran.staff@meharbanacworks.com",
       role: UserRole.SERVICE_ADVISOR,
       status: StaffStatus.ACTIVE,
       specialization: "Customer intake and estimate approval",
@@ -415,7 +415,7 @@ async function main() {
         jobCardId: jobCards[0].id,
         mobileNumber: "919876543210",
         messageType: WhatsAppMessageType.JOB_CARD_CREATED,
-        messageBody: "Hello Ramesh Kumar, your vehicle TS09EX1234 has been received at Meherban Car A/C Works.",
+        messageBody: "Hello Ramesh Kumar, your vehicle TS09EX1234 has been received at Meharban Car A/C Works.",
         sendMethod: WhatsAppSendMethod.FALLBACK,
         status: WhatsAppStatus.PENDING,
       },
@@ -436,7 +436,7 @@ async function main() {
     data: {
       phoneNumber: "+91 98765 43210",
       whatsappNumber: "+91 98765 43210",
-      email: "contact@meherbanacworks.com",
+      email: "contact@meharbanacworks.com",
       address: "Hyderabad, Telangana",
     },
   });

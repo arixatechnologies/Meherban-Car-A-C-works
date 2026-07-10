@@ -34,10 +34,10 @@ export function splitNotes(value: string | null | undefined) {
 
 export function InfoRow({ labelText, value }: { labelText: string; value: ReactNode }) {
   return (
-    <div className="grid grid-cols-[136px_10px_1fr] gap-2 text-[13px] leading-6">
+    <div className="grid min-w-0 grid-cols-[136px_10px_minmax(0,1fr)] gap-2 text-[13px] leading-6">
       <dt className="font-bold text-slate-950">{labelText}</dt>
       <dd className="font-bold text-slate-700">:</dd>
-      <dd className="text-slate-950">{value || "-"}</dd>
+      <dd className="min-w-0 break-words text-slate-950">{value || "-"}</dd>
     </div>
   );
 }
@@ -93,7 +93,7 @@ export function DocumentHeader({
     address: string;
   } | null;
 }) {
-  const workshopName = setting?.workshopName || "Meherban Car A/C Works";
+  const workshopName = setting?.workshopName || "Meharban Car A/C Works";
   const tagline = setting?.tagline || "Complete Car A/C Service & Repair Specialist";
   const phoneNumber = setting?.phoneNumber || setting?.whatsappNumber || defaultPhoneNumber;
   const address = setting?.address || defaultAddress;
@@ -266,9 +266,6 @@ export function DocumentFooter({ workshopName }: { workshopName: string }) {
           })}
         </div>
       </footer>
-      <div className={`${maroon} mt-3 rounded-b-lg px-4 py-4 text-center text-lg font-semibold text-white`}>
-        We appreciate your trust in our service. Drive safe and stay cool!
-      </div>
     </>
   );
 }

@@ -202,6 +202,74 @@ async function invoiceNumberForJobCard(jobCardNumber: string) {
   return documentNumberFromJobCard(jobCardNumber, invoicePrefix);
 }
 
+async function availableEstimateNumber(preferredNumber: string, excludeId: string) {
+  const existing = await prisma.estimate.findUnique({
+    where: { estimateNumber: preferredNumber },
+    select: { id: true },
+  });
+
+  if (!existing || existing.id === excludeId) return preferredNumber;
+
+  for (let index = 1; index <= 999; index += 1) {
+    const candidate = `${preferredNumber}-${String(index).padStart(2, "0")}`;
+    const candidateExisting = await prisma.estimate.findUnique({
+      where: { estimateNumber: candidate },
+      select: { id: true },
+    });
+    if (!candidateExisting || candidateExisting.id === excludeId) return candidate;
+  }
+
+  return `${preferredNumber}-${Date.now()}`;
+}
+
+async function availableInvoiceNumber(preferredNumber: string, excludeId: string) {
+  const existing = await prisma.invoice.findUnique({
+    where: { invoiceNumber: preferredNumber },
+    select: { id: true },
+  });
+
+  if (!existing || existing.id === excludeId) return preferredNumber;
+
+  for (let index = 1; index <= 999; index += 1) {
+    const candidate = `${preferredNumber}-${String(index).padStart(2, "0")}`;
+    const candidateExisting = await prisma.invoice.findUnique({
+      where: { invoiceNumber: candidate },
+      select: { id: true },
+    });
+    if (!candidateExisting || candidateExisting.id === excludeId) return candidate;
+  }
+
+  return `${preferredNumber}-${Date.now()}`;
+}
+
+async function moveEstimateToOwnAvailableNumber(id: string, jobCardId: string) {
+  const legacyJobCard = await prisma.jobCard.findUniqueOrThrow({
+    where: { id: jobCardId },
+    select: { jobCardNumber: true },
+  });
+  const preferredNumber = await estimateNumberForJobCard(legacyJobCard.jobCardNumber);
+  const availableNumber = await availableEstimateNumber(preferredNumber, id);
+
+  await prisma.estimate.update({
+    where: { id },
+    data: { estimateNumber: availableNumber },
+  });
+}
+
+async function moveInvoiceToOwnAvailableNumber(id: string, jobCardId: string) {
+  const legacyJobCard = await prisma.jobCard.findUniqueOrThrow({
+    where: { id: jobCardId },
+    select: { jobCardNumber: true },
+  });
+  const preferredNumber = await invoiceNumberForJobCard(legacyJobCard.jobCardNumber);
+  const availableNumber = await availableInvoiceNumber(preferredNumber, id);
+
+  await prisma.invoice.update({
+    where: { id },
+    data: { invoiceNumber: availableNumber },
+  });
+}
+
 function randomTrackingToken() {
   return crypto.randomUUID().replaceAll("-", "") + crypto.randomUUID().replaceAll("-", "").slice(0, 8);
 }
@@ -279,22 +347,31 @@ async function invoiceMessageContext(invoiceId: string) {
 }
 
 function parseLineItems(formData: FormData) {
+  const partServices = formData.getAll("itemPartService");
   const descriptions = formData.getAll("itemDescription");
+  const remarks = formData.getAll("itemRemarks");
   const categories = formData.getAll("itemCategory");
   const quantities = formData.getAll("itemQuantity");
   const unitPrices = formData.getAll("itemUnitPrice");
 
   return descriptions
-    .map((description, index) => ({
-      description: typeof description === "string" ? description.trim() : "",
-      category:
-        typeof categories[index] === "string"
-          ? (categories[index] as ItemCategory)
-          : ItemCategory.SERVICE,
-      quantity: looseDecimal(typeof quantities[index] === "string" ? quantities[index] : "0"),
-      unitPrice: decimal(typeof unitPrices[index] === "string" ? unitPrices[index] : "0"),
-    }))
-    .filter((item) => item.description)
+    .map((description, index) => {
+      const partService = typeof partServices[index] === "string" ? partServices[index].trim() : "";
+      const lineDescription = typeof description === "string" ? description.trim() : "";
+
+      return {
+        partService: optional(partService || lineDescription),
+        description: lineDescription || partService,
+        remarks: typeof remarks[index] === "string" ? optional(remarks[index]) : undefined,
+        category:
+          typeof categories[index] === "string"
+            ? (categories[index] as ItemCategory)
+            : ItemCategory.SERVICE,
+        quantity: looseDecimal(typeof quantities[index] === "string" ? quantities[index] : "0"),
+        unitPrice: decimal(typeof unitPrices[index] === "string" ? unitPrices[index] : "0"),
+      };
+    })
+    .filter((item) => item.partService || item.description)
     .map((item) => ({
       ...item,
       amount: item.quantity.mul(item.unitPrice),
@@ -359,14 +436,11 @@ export async function saveJobCard(id: string | null, formData: FormData) {
     new Prisma.Decimal(0),
   );
   const submittedTotalAmount = decimal(str(formData, "estimatedTotalAmount"));
-  const estimatedTotalAmount = submittedTotalAmount.greaterThan(0)
-    ? submittedTotalAmount
-    : observationsTotal;
+  const estimatedTotalAmount = serviceObservations.length
+    ? observationsTotal
+    : submittedTotalAmount;
   const advanceAmount = decimal(str(formData, "advanceAmount"));
-  const submittedBalanceDue = str(formData, "balanceDue");
-  const balanceDue = submittedBalanceDue
-    ? decimal(submittedBalanceDue)
-    : nonNegative(estimatedTotalAmount.sub(advanceAmount));
+  const balanceDue = nonNegative(estimatedTotalAmount.sub(advanceAmount));
   const paymentModeValue = str(formData, "jobCardPaymentMode");
   const paymentMode = Object.values(PaymentMode).includes(paymentModeValue as PaymentMode)
     ? (paymentModeValue as PaymentMode)
@@ -476,7 +550,7 @@ export async function saveJobCard(id: string | null, formData: FormData) {
     customerId,
     vehicleId,
     serviceAdvisorId: session.id,
-    serviceAdvisorName: optional(str(formData, "serviceAdvisorName")) || "Meherban",
+    serviceAdvisorName: optional(str(formData, "serviceAdvisorName")) || "Meharban",
     assignedTechnicianId: optional(str(formData, "assignedTechnicianId")),
     technicianName: optional(str(formData, "technicianName")),
     bayNumber: optional(str(formData, "bayNumber")),
@@ -695,41 +769,41 @@ export async function saveEstimate(id: string | null, formData: FormData) {
 
   if (existingEstimate) {
     if (existingEstimate.jobCardId !== jobCardId) {
-      throw new Error(`Estimate number ${estimateNumber} is already used by another job card.`);
-    }
-
-    await prisma.estimate.update({
-      where: { id: existingEstimate.id },
-      data: {
-        ...data,
-        items: {
-          deleteMany: {},
-          create: items,
+      await moveEstimateToOwnAvailableNumber(existingEstimate.id, existingEstimate.jobCardId);
+    } else {
+      await prisma.estimate.update({
+        where: { id: existingEstimate.id },
+        data: {
+          ...data,
+          items: {
+            deleteMany: {},
+            create: items,
+          },
         },
-      },
-    });
-
-    if (status === EstimateStatus.SHARED) {
-      await prisma.jobCard.update({
-        where: { id: jobCardId },
-        data: { status: JobCardStatus.ESTIMATE_SHARED },
       });
-    }
 
-    const setting = await prisma.workshopSetting.findUnique({ where: { singletonKey: "default" } });
-    if (
-      setting?.autoSendEstimateMessage &&
-      status === EstimateStatus.SHARED &&
-      existingEstimate.status !== EstimateStatus.SHARED
-    ) {
-      await sendEstimateSharedMessage(await estimateMessageContext(existingEstimate.id));
-    }
+      if (status === EstimateStatus.SHARED) {
+        await prisma.jobCard.update({
+          where: { id: jobCardId },
+          data: { status: JobCardStatus.ESTIMATE_SHARED },
+        });
+      }
 
-    revalidatePath("/");
-    revalidatePath("/estimates");
-    revalidatePath(`/estimates/${existingEstimate.id}`);
-    revalidatePath(`/job-cards/${jobCardId}`);
-    redirect(`/estimates/${existingEstimate.id}`);
+      const setting = await prisma.workshopSetting.findUnique({ where: { singletonKey: "default" } });
+      if (
+        setting?.autoSendEstimateMessage &&
+        status === EstimateStatus.SHARED &&
+        existingEstimate.status !== EstimateStatus.SHARED
+      ) {
+        await sendEstimateSharedMessage(await estimateMessageContext(existingEstimate.id));
+      }
+
+      revalidatePath("/");
+      revalidatePath("/estimates");
+      revalidatePath(`/estimates/${existingEstimate.id}`);
+      revalidatePath(`/job-cards/${jobCardId}`);
+      redirect(`/estimates/${existingEstimate.id}`);
+    }
   }
 
   const estimate = await prisma.estimate.create({
@@ -848,7 +922,9 @@ export async function saveInvoice(id: string | null, formData: FormData) {
     parsedItems.length > 0
       ? parsedItems
       : estimate?.items.map((item) => ({
+          partService: item.partService || item.description,
           description: item.description,
+          remarks: item.remarks,
           category: item.category,
           quantity: item.quantity,
           unitPrice: item.unitPrice,
@@ -901,41 +977,41 @@ export async function saveInvoice(id: string | null, formData: FormData) {
 
   if (existingInvoice) {
     if (existingInvoice.jobCardId !== jobCardId) {
-      throw new Error(`Invoice number ${invoiceNumber} is already used by another job card.`);
-    }
-
-    await prisma.invoice.update({
-      where: { id: existingInvoice.id },
-      data: {
-        ...data,
-        items: {
-          deleteMany: {},
-          create: items,
+      await moveInvoiceToOwnAvailableNumber(existingInvoice.id, existingInvoice.jobCardId);
+    } else {
+      await prisma.invoice.update({
+        where: { id: existingInvoice.id },
+        data: {
+          ...data,
+          items: {
+            deleteMany: {},
+            create: items,
+          },
         },
-      },
-    });
-
-    await prisma.jobCard.update({
-      where: { id: jobCardId },
-      data: {
-        status:
-          balanceAmount.greaterThan(0) ? JobCardStatus.PAYMENT_PENDING : JobCardStatus.INVOICE_GENERATED,
-      },
-    });
-
-    if (estimateId) {
-      await prisma.estimate.update({
-        where: { id: estimateId },
-        data: { status: EstimateStatus.CONVERTED_TO_INVOICE },
       });
-    }
 
-    revalidatePath("/");
-    revalidatePath("/invoices");
-    revalidatePath(`/invoices/${existingInvoice.id}`);
-    revalidatePath(`/job-cards/${jobCardId}`);
-    if (estimateId) revalidatePath(`/estimates/${estimateId}`);
-    redirect(`/invoices/${existingInvoice.id}`);
+      await prisma.jobCard.update({
+        where: { id: jobCardId },
+        data: {
+          status:
+            balanceAmount.greaterThan(0) ? JobCardStatus.PAYMENT_PENDING : JobCardStatus.INVOICE_GENERATED,
+        },
+      });
+
+      if (estimateId) {
+        await prisma.estimate.update({
+          where: { id: estimateId },
+          data: { status: EstimateStatus.CONVERTED_TO_INVOICE },
+        });
+      }
+
+      revalidatePath("/");
+      revalidatePath("/invoices");
+      revalidatePath(`/invoices/${existingInvoice.id}`);
+      revalidatePath(`/job-cards/${jobCardId}`);
+      if (estimateId) revalidatePath(`/estimates/${estimateId}`);
+      redirect(`/invoices/${existingInvoice.id}`);
+    }
   }
 
   const invoice = await prisma.invoice.create({
@@ -1141,7 +1217,7 @@ export async function saveSettings(formData: FormData) {
       autoSendDeliveryMessage: bool(formData, "autoSendDeliveryMessage"),
     },
     create: {
-      workshopName: str(formData, "workshopName") || "Meherban Car A/C Works",
+      workshopName: str(formData, "workshopName") || "Meharban Car A/C Works",
       tagline: str(formData, "tagline") || "Complete Car A/C Service & Repair Specialist",
       phoneNumber: str(formData, "phoneNumber"),
       whatsappNumber: str(formData, "whatsappNumber"),
@@ -1150,7 +1226,7 @@ export async function saveSettings(formData: FormData) {
       logoUrl: optional(str(formData, "logoUrl")),
       invoiceFooterNote:
         str(formData, "invoiceFooterNote") ||
-        "Thank you for choosing Meherban Car A/C Works. Drive cool, drive comfortable.",
+        "Thank you for choosing Meharban Car A/C Works. Drive cool, drive comfortable.",
       estimateTerms:
         str(formData, "estimateTerms") ||
         "This is an estimate only. Final invoice may vary if additional parts or services are required after customer approval.",

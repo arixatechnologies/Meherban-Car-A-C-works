@@ -60,10 +60,10 @@ export default async function JobCardDetailPage({
           <Calculator className="h-4 w-4" />
           {latestEstimate ? "View Estimation" : "Create Estimation"}
         </Button>
-        <Button href={`/job-cards/${jobCard.id}/print`} variant="secondary">
+        <a href={`/job-cards/${jobCard.id}/pdf`} download className={externalButtonClass}>
           <FileDown className="h-4 w-4" />
           Download PDF
-        </Button>
+        </a>
         <a
           href={createWhatsAppLink(jobCard.customer.whatsapp || jobCard.customer.mobile, message)}
           target="_blank"

@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { InvoiceForm } from "@/components/forms";
-import { Card, CardBody, CardHeader, PageHeader } from "@/components/ui";
+import { PageHeader } from "@/components/ui";
 import { prisma } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
@@ -12,10 +12,18 @@ export default async function EditInvoicePage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [invoice, jobCards, estimates] = await Promise.all([
+  const [invoice, jobCards, estimates, setting] = await Promise.all([
     prisma.invoice.findUnique({ where: { id }, include: { items: true } }),
-    prisma.jobCard.findMany({ include: { customer: true, vehicle: true }, orderBy: { createdAt: "desc" } }),
+    prisma.jobCard.findMany({
+      include: {
+        customer: true,
+        vehicle: true,
+        serviceObservations: { orderBy: { sortOrder: "asc" } },
+      },
+      orderBy: { createdAt: "desc" },
+    }),
     prisma.estimate.findMany({ orderBy: { createdAt: "desc" } }),
+    prisma.workshopSetting.findUnique({ where: { singletonKey: "default" } }),
   ]);
 
   if (!invoice) notFound();
@@ -23,12 +31,7 @@ export default async function EditInvoicePage({
   return (
     <div className="grid gap-6">
       <PageHeader title={`Edit ${invoice.invoiceNumber}`} />
-      <Card>
-        <CardHeader title="Invoice details" />
-        <CardBody>
-          <InvoiceForm invoice={invoice} jobCards={jobCards} estimates={estimates} />
-        </CardBody>
-      </Card>
+      <InvoiceForm invoice={invoice} jobCards={jobCards} estimates={estimates} setting={setting} />
     </div>
   );
 }

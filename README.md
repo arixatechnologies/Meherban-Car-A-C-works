@@ -1,4 +1,4 @@
-# Meherban Car A/C Works
+# Meharban Car A/C Works
 
 Digital Job Card & Service Management System for car A/C service, diagnosis, estimates, final service bills, payments, customer tracking, staff workload, reports, and WhatsApp-ready updates.
 
@@ -76,7 +76,7 @@ If your password has special characters, URL-encode the password before putting 
 
 ## Default Admin Login
 
-- Email: `admin@meherbanacworks.com`
+- Email: `admin@meharbanacworks.com`
 - Password: `admin12345`
 
 The seed script hashes the password before storing it.

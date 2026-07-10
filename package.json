@@ -1,5 +1,5 @@
 {
-  "name": "meherban-car-ac-works",
+  "name": "meharban-car-ac-works",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -23,6 +23,7 @@
     "lucide-react": "^1.23.0",
     "next": "16.2.10",
     "pg": "^8.22.0",
+    "puppeteer-core": "^25.3.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "react-hook-form": "^7.81.0",
@@ -49,14 +50,14 @@
   "main": "index.js",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/arixatechnologies/Meherban-Car-A-C-works.git"
+    "url": "git+https://github.com/arixatechnologies/Meharban-Car-A-C-works.git"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "module",
   "bugs": {
-    "url": "https://github.com/arixatechnologies/Meherban-Car-A-C-works/issues"
+    "url": "https://github.com/arixatechnologies/Meharban-Car-A-C-works/issues"
   },
-  "homepage": "https://github.com/arixatechnologies/Meherban-Car-A-C-works#readme"
+  "homepage": "https://github.com/arixatechnologies/Meharban-Car-A-C-works#readme"
 }

@@ -33,6 +33,9 @@ type Option = {
 
 type CustomerOption = Option & {
   mobile: string;
+  whatsapp?: string | null;
+  address?: string | null;
+  city?: string | null;
 };
 
 type VehicleOption = {
@@ -41,13 +44,46 @@ type VehicleOption = {
   brand: string;
   model: string;
   customerId: string;
+  variant?: string | null;
+  fuelType?: string;
+  year?: number | null;
+  odometerReading?: number | null;
 };
 
 type JobCardOption = {
   id: string;
   jobCardNumber: string;
-  customer: { name: string };
-  vehicle: { vehicleNumber: string };
+  dateTime?: Date;
+  expectedDeliveryAt?: Date | null;
+  serviceAdvisorName?: string | null;
+  technicianName?: string | null;
+  finalQcBy?: string | null;
+  complaints?: string[];
+  customComplaint?: string | null;
+  workSuggested?: string | null;
+  partsRequired?: string | null;
+  advanceAmount?: Decimalish;
+  customer: {
+    name: string;
+    mobile?: string;
+    address?: string | null;
+    city?: string | null;
+  };
+  vehicle: {
+    vehicleNumber: string;
+    brand?: string;
+    model?: string;
+    variant?: string | null;
+    fuelType?: string;
+    year?: number | null;
+    odometerReading?: number | null;
+  };
+  serviceObservations?: {
+    partService: string;
+    description: string | null;
+    quantity: Decimalish;
+    unitPrice: Decimalish;
+  }[];
 };
 
 type EstimateOption = {
@@ -55,6 +91,7 @@ type EstimateOption = {
   estimateNumber: string;
   jobCardId: string;
   totalAmount: Decimalish;
+  advanceReceived?: Decimalish;
   items?: LineItem[];
 };
 
@@ -66,11 +103,23 @@ type InvoiceOption = {
 };
 
 type LineItem = {
+  partService?: string | null;
   description: string;
+  remarks?: string | null;
   category: string;
   quantity: Decimalish;
   unitPrice: Decimalish;
 };
+
+type WorkshopSettingOption = {
+  workshopName: string;
+  tagline: string;
+  phoneNumber: string;
+  whatsappNumber: string;
+  address: string;
+  estimatePrefix?: string;
+  invoicePrefix?: string;
+} | null;
 
 const fuelTypeOptions = ["Petrol", "Diesel", "CNG", "Electric", "Hybrid"] as const;
 const gearTypeOptions = ["Manual", "Automatic", "AMT", "CVT", "DCT"] as const;
@@ -82,6 +131,132 @@ const jobCardTextareaClass =
 function valueOf(value: Decimalish | null | undefined) {
   if (value == null) return "";
   return value.toString();
+}
+
+function displayNumber(value: string | null | undefined) {
+  if (!value) return "-";
+  const digits = value.replace(/\D/g, "");
+  if (digits.length === 10) return `+91 ${digits}`;
+  return value;
+}
+
+function splitNotes(value: string | null | undefined) {
+  return (value ?? "")
+    .split(/\r?\n|,/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function documentNumberPreview(jobCardNumber: string | undefined, prefix: string, fallback: string) {
+  if (!jobCardNumber) return fallback;
+  const parts = jobCardNumber.split("-");
+  const year = parts.at(-2) || String(new Date().getFullYear());
+  const sequence = parts.at(-1) || "0001";
+  return `${prefix}-${year}-${sequence}`;
+}
+
+function categoryForObservation(observation: { partService: string; description: string | null }): "PARTS" | "LABOUR" {
+  const text = `${observation.partService} ${observation.description ?? ""}`.toLowerCase();
+  return /labou?r|service|check|inspection|cleaning|clean|top[- ]?up|gas filling|performance/.test(text)
+    ? "LABOUR"
+    : "PARTS";
+}
+
+function observationsToLineItems(observations: JobCardOption["serviceObservations"] | undefined): LineItem[] {
+  return (observations ?? []).map((observation) => ({
+    partService: observation.partService,
+    description: observation.description ?? "",
+    remarks: "",
+    category: categoryForObservation(observation),
+    quantity: valueOf(observation.quantity),
+    unitPrice: valueOf(observation.unitPrice),
+  }));
+}
+
+function lineItemsForEditor(items: LineItem[] | undefined): LineItem[] {
+  return (items ?? []).map((item) => ({
+    partService: item.partService ?? "",
+    description: item.description,
+    remarks: item.remarks ?? "",
+    category: item.category,
+    quantity: valueOf(item.quantity),
+    unitPrice: valueOf(item.unitPrice),
+  }));
+}
+
+function jobCardComplaint(jobCard: JobCardOption | undefined) {
+  return [...(jobCard?.complaints ?? []), jobCard?.customComplaint].filter(Boolean).join(", ");
+}
+
+function readOnlyValue(value: ReactNode) {
+  return (
+    <div className="min-h-11 rounded-md border-[1.5px] border-[#ead0d7] bg-[#fff8fa] px-3 py-2 text-sm font-semibold text-slate-950">
+      {value || "-"}
+    </div>
+  );
+}
+
+function DocumentFormHeader({
+  title,
+  infoTitle,
+  number,
+  date,
+  serviceAdvisor,
+  setting,
+}: {
+  title: string;
+  infoTitle: string;
+  number: string;
+  date: string;
+  serviceAdvisor: string;
+  setting?: WorkshopSettingOption;
+}) {
+  const workshopName = setting?.workshopName || "Meharban Car A/C Works";
+  const tagline = setting?.tagline || "Complete Car A/C Service & Repair Specialist";
+  const phoneNumber = setting?.phoneNumber || setting?.whatsappNumber || "7287948037";
+  const address =
+    setting?.address ||
+    "Pantulugarimeda, Beside Visakha Eye Hospital, Autonagar, Old Gajuwaka, Visakhapatnam - 26";
+
+  return (
+    <div className="grid gap-5 md:grid-cols-[1.7fr_0.9fr]">
+      <div className="grid items-center gap-4 sm:grid-cols-[135px_1fr]">
+        <div className="grid h-32 w-32 place-items-center overflow-hidden rounded-full border-[3px] border-[#8b0f2f] bg-white p-2">
+          <Image src="/logo.png" alt={`${workshopName} logo`} width={112} height={112} className="h-full w-full object-contain" priority />
+        </div>
+        <div className="self-center text-center sm:text-left">
+          <h1 className="whitespace-nowrap text-[24px] font-black uppercase leading-none tracking-wide text-[#650820] sm:text-[32px]">
+            {workshopName}
+          </h1>
+          <p className="mt-3 text-base font-bold text-slate-600 md:text-lg">{tagline}</p>
+          <div className="mt-4 grid gap-2 text-sm font-medium text-slate-900 md:text-[15px]">
+            <p className="grid grid-cols-[24px_1fr] gap-3">
+              <Phone className="h-5 w-5 text-[#8b0f2f]" />
+              <span>{phoneNumber}</span>
+            </p>
+            <p className="grid grid-cols-[24px_1fr] gap-3">
+              <MapPin className="h-5 w-5 text-[#8b0f2f]" />
+              <span>{address}</span>
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div className="mb-3 rounded-lg bg-[#8b0f2f] px-5 py-3 text-center text-3xl font-black uppercase tracking-wide text-white">
+          {title}
+        </div>
+        <section className="overflow-hidden rounded-lg border-[1.5px] border-[#d9a5b3] bg-white">
+          <h2 className="bg-[#8b0f2f] py-2 text-center text-sm font-black uppercase text-white">{infoTitle}</h2>
+          <div className="grid gap-3 p-3">
+            <JobCardInfoRow labelText={`${title.includes("Invoice") ? "Invoice" : "Estimate"} No.`}>{readOnlyValue(number)}</JobCardInfoRow>
+            <JobCardInfoRow labelText="Date">{readOnlyValue(date)}</JobCardInfoRow>
+            <JobCardInfoRow labelText="Service Advisor">{readOnlyValue(serviceAdvisor)}</JobCardInfoRow>
+          </div>
+        </section>
+      </div>
+    </div>
+  );
 }
 
 function FormSection({
@@ -182,7 +357,7 @@ export function JobCardForm({
   const action = saveJobCard.bind(null, jobCard?.id ?? null);
   const now = new Date();
   const displayDate = toDateInput(jobCard?.dateTime ?? now);
-  const workshopName = setting?.workshopName || "Meherban Car A/C Works";
+  const workshopName = setting?.workshopName || "Meharban Car A/C Works";
   const tagline = setting?.tagline || "Complete Car A/C Service & Repair Specialist";
   const phoneNumber = setting?.phoneNumber || setting?.whatsappNumber || "7287948037";
   const address =
@@ -247,7 +422,7 @@ export function JobCardForm({
                 <input value={displayDate} readOnly className={jobCardInputClass} />
               </JobCardInfoRow>
               <JobCardInfoRow labelText="Service Advisor">
-                <input name="serviceAdvisorName" defaultValue={jobCard?.serviceAdvisorName || "Meherban"} className={jobCardInputClass} />
+                <input name="serviceAdvisorName" defaultValue={jobCard?.serviceAdvisorName || "Meharban"} className={jobCardInputClass} />
               </JobCardInfoRow>
             </div>
           </section>
@@ -521,11 +696,14 @@ export function EstimateForm({
   estimate,
   jobCards,
   selectedJobCardId,
+  setting,
 }: {
   estimate?: {
     id: string;
+    estimateNumber?: string;
     jobCardId: string;
     validTill: Date | null;
+    date?: Date;
     problemSummary: string;
     discount: Decimalish;
     advanceReceived: Decimalish;
@@ -534,25 +712,42 @@ export function EstimateForm({
   };
   jobCards: JobCardOption[];
   selectedJobCardId?: string;
+  setting?: WorkshopSettingOption;
 }) {
   const action = saveEstimate.bind(null, estimate?.id ?? null);
   const lockedJobCardId = estimate?.jobCardId ?? selectedJobCardId ?? "";
   const lockedJobCard = jobCards.find((jobCard) => jobCard.id === lockedJobCardId);
+  const serviceAdvisorName = lockedJobCard?.serviceAdvisorName || "Meharban";
+  const problemSummary = estimate?.problemSummary || jobCardComplaint(lockedJobCard) || "Estimation prepared from job card.";
+  const initialItems = lineItemsForEditor(
+    estimate?.items?.length ? estimate.items : observationsToLineItems(lockedJobCard?.serviceObservations),
+  );
+  const workItems = splitNotes(lockedJobCard?.workSuggested);
+  const requiredParts = splitNotes(lockedJobCard?.partsRequired);
+  const estimateNumber =
+    estimate?.estimateNumber ||
+    documentNumberPreview(lockedJobCard?.jobCardNumber, setting?.estimatePrefix || "EST", "Auto generated");
+  const estimateDate = toDateInput(estimate?.date ?? new Date());
 
   return (
-    <form action={action} className="grid gap-5">
+    <form action={action} className="document-lock-font mx-auto max-w-[1120px] rounded-xl border-2 border-[#d9a5b3] bg-white p-4 shadow-[0_10px_30px_rgba(139,15,47,0.15)]">
       <input type="hidden" name="status" value={estimate?.status ?? "DRAFT"} />
-      <input type="hidden" name="problemSummary" value={estimate?.problemSummary ?? ""} />
+      <input type="hidden" name="problemSummary" value={problemSummary} />
       <input type="hidden" name="validTill" value={toDateInput(estimate?.validTill)} />
+      {lockedJobCardId ? <input type="hidden" name="jobCardId" value={lockedJobCardId} /> : null}
 
-      {lockedJobCardId ? (
-        <div className="rounded-lg border border-[#e7c9c1] bg-[#fff1e8] px-4 py-3 text-sm font-bold text-[#4b1737]">
-          <input type="hidden" name="jobCardId" value={lockedJobCardId} />
-          Job Card: {lockedJobCard ? `${lockedJobCard.jobCardNumber} - ${lockedJobCard.vehicle.vehicleNumber} - ${lockedJobCard.customer.name}` : lockedJobCardId}
-        </div>
-      ) : (
-        <Field labelText="Related job card">
-          <select name="jobCardId" required defaultValue={estimate?.jobCardId ?? selectedJobCardId ?? ""} className={inputClass}>
+      <DocumentFormHeader
+        title="Estimation"
+        infoTitle="Estimation Information"
+        number={estimateNumber}
+        date={estimateDate}
+        serviceAdvisor={serviceAdvisorName}
+        setting={setting}
+      />
+
+      {!lockedJobCardId ? (
+        <FormSection title="Related Job Card" className="mt-4">
+          <select name="jobCardId" required defaultValue={estimate?.jobCardId ?? selectedJobCardId ?? ""} className={jobCardInputClass}>
             <option value="">Select job card</option>
             {jobCards.map((jobCard) => (
               <option key={jobCard.id} value={jobCard.id}>
@@ -560,25 +755,101 @@ export function EstimateForm({
               </option>
             ))}
           </select>
-        </Field>
-      )}
+        </FormSection>
+      ) : null}
 
-      <LineItemsEditor items={estimate?.items} />
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Field labelText="Discount">
-          <input name="discount" type="number" step="0.01" defaultValue={valueOf(estimate?.discount)} className={inputClass} />
-        </Field>
-        <Field labelText="Advance received">
-          <input
-            name="advanceReceived"
-            type="number"
-            step="0.01"
-            defaultValue={valueOf(estimate?.advanceReceived)}
-            className={inputClass}
-          />
-        </Field>
+      <div className="mt-4 grid gap-3 md:grid-cols-[0.72fr_1fr]">
+        <FormSection title="Customer Details">
+          <div className="grid gap-3">
+            <JobCardInfoRow labelText="Customer Name">{readOnlyValue(lockedJobCard?.customer.name)}</JobCardInfoRow>
+            <JobCardInfoRow labelText="Contact No.">{readOnlyValue(displayNumber(lockedJobCard?.customer.mobile))}</JobCardInfoRow>
+            <JobCardInfoRow labelText="Address">{readOnlyValue(lockedJobCard?.customer.address || lockedJobCard?.customer.city || "-")}</JobCardInfoRow>
+          </div>
+        </FormSection>
+
+        <FormSection title="Vehicle Details">
+          <div className="grid gap-3 md:grid-cols-2">
+            <JobCardInfoRow labelText="Reg Number">{readOnlyValue(lockedJobCard?.vehicle.vehicleNumber)}</JobCardInfoRow>
+            <JobCardInfoRow labelText="Fuel Type">{readOnlyValue(lockedJobCard?.vehicle.fuelType)}</JobCardInfoRow>
+            <JobCardInfoRow labelText="Car Make / Model">
+              {readOnlyValue(`${lockedJobCard?.vehicle.brand ?? ""} ${lockedJobCard?.vehicle.model ?? ""}`.trim())}
+            </JobCardInfoRow>
+            <JobCardInfoRow labelText="Gear Type">{readOnlyValue(lockedJobCard?.vehicle.variant || "-")}</JobCardInfoRow>
+            <JobCardInfoRow labelText="Year">{readOnlyValue(lockedJobCard?.vehicle.year ?? "-")}</JobCardInfoRow>
+            <JobCardInfoRow labelText="Delivery Date">
+              {readOnlyValue(lockedJobCard?.expectedDeliveryAt ? `${toDateInput(lockedJobCard.expectedDeliveryAt)} (Expected)` : "-")}
+            </JobCardInfoRow>
+            <JobCardInfoRow labelText="KM Reading">
+              {readOnlyValue(lockedJobCard?.vehicle.odometerReading ? `${lockedJobCard.vehicle.odometerReading.toLocaleString("en-IN")} KM` : "-")}
+            </JobCardInfoRow>
+          </div>
+        </FormSection>
       </div>
-      <SubmitButton>{estimate ? "Update estimate" : "Create estimate"}</SubmitButton>
+
+      <FormSection title="Complaint / Issue Reported By Customer" className="mt-4">
+        <p className="text-sm font-semibold leading-6 text-slate-950">{problemSummary}</p>
+      </FormSection>
+
+      <div className="mt-4 grid gap-4 lg:grid-cols-2">
+        <FormSection title="Work To Be Done">
+          <ul className="list-disc space-y-1 pl-5 text-sm font-semibold leading-6">
+            {(workItems.length ? workItems : ["Inspection and diagnosis as per customer complaint."]).map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        </FormSection>
+        <FormSection title="Required Parts / Materials">
+          <ul className="list-disc space-y-1 pl-5 text-sm font-semibold leading-6">
+            {(requiredParts.length ? requiredParts : ["Add required parts and labour below."]).map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        </FormSection>
+      </div>
+
+      <div className="mt-4">
+        <LineItemsEditor items={initialItems} />
+      </div>
+
+      <FormSection title="Payment Details" className="mt-4">
+        <div className="grid gap-4 lg:grid-cols-2">
+          <JobCardField labelText="Discount">
+            <input name="discount" type="number" step="0.01" defaultValue={valueOf(estimate?.discount)} className={jobCardInputClass} />
+          </JobCardField>
+          <JobCardField labelText="Advance Received">
+            <input
+              name="advanceReceived"
+              type="number"
+              step="0.01"
+              defaultValue={valueOf(estimate?.advanceReceived) || valueOf(lockedJobCard?.advanceAmount)}
+              className={jobCardInputClass}
+            />
+          </JobCardField>
+        </div>
+      </FormSection>
+
+      <div className="mt-4 grid gap-4 md:grid-cols-2">
+        <FormSection title="Important Notes">
+          <ul className="list-disc space-y-1 pl-5 text-xs font-semibold leading-5">
+            <li>This estimation is valid up to the date mentioned above.</li>
+            <li>Additional parts or labour may be required after inspection.</li>
+            <li>Work will be started only after customer confirmation.</li>
+            <li>No GST applicable.</li>
+          </ul>
+        </FormSection>
+        <FormSection title="Terms & Conditions">
+          <ul className="list-disc space-y-1 pl-5 text-xs font-semibold leading-5">
+            <li>All parts are genuine / good quality.</li>
+            <li>Warranty is applicable as per our policy.</li>
+            <li>Estimate may change if new issues are found.</li>
+            <li>Payment to be made after job completion.</li>
+          </ul>
+        </FormSection>
+      </div>
+
+      <div className="mt-5 flex justify-end">
+        <SubmitButton>{estimate ? "Update estimate" : "Create estimate"}</SubmitButton>
+      </div>
     </form>
   );
 }
@@ -589,11 +860,14 @@ export function InvoiceForm({
   estimates,
   selectedEstimate,
   selectedJobCardId,
+  setting,
 }: {
   invoice?: {
     id: string;
+    invoiceNumber?: string;
     jobCardId: string;
     estimateId: string | null;
+    invoiceDate?: Date;
     discount: Decimalish;
     paidAmount: Decimalish;
     deliveryStatus: string;
@@ -604,78 +878,166 @@ export function InvoiceForm({
   estimates: EstimateOption[];
   selectedEstimate?: EstimateOption | null;
   selectedJobCardId?: string;
+  setting?: WorkshopSettingOption;
 }) {
   const action = saveInvoice.bind(null, invoice?.id ?? null);
   const lockedJobCardId = invoice?.jobCardId ?? selectedEstimate?.jobCardId ?? selectedJobCardId ?? "";
   const lockedEstimateId = invoice?.estimateId ?? selectedEstimate?.id ?? "";
   const lockedJobCard = jobCards.find((jobCard) => jobCard.id === lockedJobCardId);
   const lockedEstimate = estimates.find((estimate) => estimate.id === lockedEstimateId);
+  const serviceAdvisorName = lockedJobCard?.serviceAdvisorName || "Meharban";
+  const invoiceNumber =
+    invoice?.invoiceNumber ||
+    documentNumberPreview(lockedJobCard?.jobCardNumber, setting?.invoicePrefix || "INV", "Auto generated");
+  const invoiceDate = toDateInput(invoice?.invoiceDate ?? new Date());
+  const estimateItems = selectedEstimate?.items ?? lockedEstimate?.items;
+  const initialItems = lineItemsForEditor(
+    invoice?.items?.length
+      ? invoice.items
+      : estimateItems?.length
+        ? estimateItems
+        : observationsToLineItems(lockedJobCard?.serviceObservations),
+  );
+  const complaintText = jobCardComplaint(lockedJobCard);
+  const serviceSummary = invoice?.notes || `${complaintText || "Service completed"}${complaintText ? ". " : " "}Service completed and billed as below.`;
 
   return (
-    <form action={action} className="grid gap-5">
-      <div className="grid gap-4 lg:grid-cols-3">
-        <Field labelText="Job card">
-          {lockedJobCardId ? (
-            <>
-              <input type="hidden" name="jobCardId" value={lockedJobCardId} />
-              <div className="grid h-11 items-center rounded-lg border border-[#e7c9c1] bg-[#fff1e8] px-3 text-sm font-bold text-[#4b1737]">
-                {lockedJobCard ? `${lockedJobCard.jobCardNumber} - ${lockedJobCard.vehicle.vehicleNumber}` : lockedJobCardId}
-              </div>
-            </>
-          ) : (
-            <select
-              name="jobCardId"
-              required
-              defaultValue={invoice?.jobCardId ?? selectedEstimate?.jobCardId ?? selectedJobCardId ?? ""}
-              className={inputClass}
-            >
-              <option value="">Select job card</option>
-              {jobCards.map((jobCard) => (
-                <option key={jobCard.id} value={jobCard.id}>
-                  {jobCard.jobCardNumber} - {jobCard.vehicle.vehicleNumber}
-                </option>
-              ))}
-            </select>
-          )}
-        </Field>
-        <Field labelText="Estimate">
-          {lockedEstimateId ? (
-            <>
-              <input type="hidden" name="estimateId" value={lockedEstimateId} />
-              <div className="grid h-11 items-center rounded-lg border border-[#e7c9c1] bg-[#fff1e8] px-3 text-sm font-bold text-[#4b1737]">
-                {selectedEstimate || lockedEstimate
-                  ? `${(selectedEstimate ?? lockedEstimate)?.estimateNumber} - ${formatMoney((selectedEstimate ?? lockedEstimate)?.totalAmount)}`
-                  : lockedEstimateId}
-              </div>
-            </>
-          ) : (
-            <select name="estimateId" defaultValue={invoice?.estimateId ?? selectedEstimate?.id ?? ""} className={inputClass}>
-              <option value="">Skipped</option>
-              {estimates.map((estimate) => (
-                <option key={estimate.id} value={estimate.id}>
-                  {estimate.estimateNumber} - {formatMoney(estimate.totalAmount)}
-                </option>
-              ))}
-            </select>
-          )}
-        </Field>
-        <Field labelText="Delivery status">
-          <input name="deliveryStatus" defaultValue={invoice?.deliveryStatus ?? "Pending"} className={inputClass} />
-        </Field>
+    <form action={action} className="document-lock-font mx-auto max-w-[1120px] rounded-xl border-2 border-[#d9a5b3] bg-white p-4 shadow-[0_10px_30px_rgba(139,15,47,0.15)]">
+      <DocumentFormHeader
+        title="Invoice Bill"
+        infoTitle="Invoice Information"
+        number={invoiceNumber}
+        date={invoiceDate}
+        serviceAdvisor={serviceAdvisorName}
+        setting={setting}
+      />
+
+      <FormSection title="Linked Documents" className="mt-4">
+        <div className="grid gap-4 lg:grid-cols-2">
+          <JobCardField labelText="Job Card">
+            {lockedJobCardId ? (
+              <>
+                <input type="hidden" name="jobCardId" value={lockedJobCardId} />
+                {readOnlyValue(lockedJobCard ? `${lockedJobCard.jobCardNumber} - ${lockedJobCard.vehicle.vehicleNumber}` : lockedJobCardId)}
+              </>
+            ) : (
+              <select
+                name="jobCardId"
+                required
+                defaultValue={invoice?.jobCardId ?? selectedEstimate?.jobCardId ?? selectedJobCardId ?? ""}
+                className={jobCardInputClass}
+              >
+                <option value="">Select job card</option>
+                {jobCards.map((jobCard) => (
+                  <option key={jobCard.id} value={jobCard.id}>
+                    {jobCard.jobCardNumber} - {jobCard.vehicle.vehicleNumber}
+                  </option>
+                ))}
+              </select>
+            )}
+          </JobCardField>
+          <JobCardField labelText="Estimate">
+            {lockedEstimateId ? (
+              <>
+                <input type="hidden" name="estimateId" value={lockedEstimateId} />
+                {readOnlyValue(
+                  selectedEstimate || lockedEstimate
+                    ? `${(selectedEstimate ?? lockedEstimate)?.estimateNumber} - ${formatMoney((selectedEstimate ?? lockedEstimate)?.totalAmount)}`
+                    : lockedEstimateId,
+                )}
+              </>
+            ) : (
+              <select name="estimateId" defaultValue={invoice?.estimateId ?? selectedEstimate?.id ?? ""} className={jobCardInputClass}>
+                <option value="">Skipped</option>
+                {estimates.map((estimate) => (
+                  <option key={estimate.id} value={estimate.id}>
+                    {estimate.estimateNumber} - {formatMoney(estimate.totalAmount)}
+                  </option>
+                ))}
+              </select>
+            )}
+          </JobCardField>
+        </div>
+      </FormSection>
+
+      <div className="mt-4 grid gap-3 md:grid-cols-[0.72fr_1fr]">
+        <FormSection title="Customer Details">
+          <div className="grid gap-3">
+            <JobCardInfoRow labelText="Customer Name">{readOnlyValue(lockedJobCard?.customer.name)}</JobCardInfoRow>
+            <JobCardInfoRow labelText="Contact No.">{readOnlyValue(displayNumber(lockedJobCard?.customer.mobile))}</JobCardInfoRow>
+            <JobCardInfoRow labelText="Address">{readOnlyValue(lockedJobCard?.customer.address || lockedJobCard?.customer.city || "-")}</JobCardInfoRow>
+          </div>
+        </FormSection>
+
+        <FormSection title="Vehicle Details">
+          <div className="grid gap-3 md:grid-cols-2">
+            <JobCardInfoRow labelText="Reg Number">{readOnlyValue(lockedJobCard?.vehicle.vehicleNumber)}</JobCardInfoRow>
+            <JobCardInfoRow labelText="Fuel Type">{readOnlyValue(lockedJobCard?.vehicle.fuelType)}</JobCardInfoRow>
+            <JobCardInfoRow labelText="Car Make / Model">
+              {readOnlyValue(`${lockedJobCard?.vehicle.brand ?? ""} ${lockedJobCard?.vehicle.model ?? ""}`.trim())}
+            </JobCardInfoRow>
+            <JobCardInfoRow labelText="Gear Type">{readOnlyValue(lockedJobCard?.vehicle.variant || "-")}</JobCardInfoRow>
+            <JobCardInfoRow labelText="Year">{readOnlyValue(lockedJobCard?.vehicle.year ?? "-")}</JobCardInfoRow>
+            <JobCardInfoRow labelText="Delivery Date">
+              {readOnlyValue(lockedJobCard?.expectedDeliveryAt ? toDateInput(lockedJobCard.expectedDeliveryAt) : "-")}
+            </JobCardInfoRow>
+            <JobCardInfoRow labelText="KM Reading">
+              {readOnlyValue(lockedJobCard?.vehicle.odometerReading ? `${lockedJobCard.vehicle.odometerReading.toLocaleString("en-IN")} KM` : "-")}
+            </JobCardInfoRow>
+          </div>
+        </FormSection>
       </div>
-      <LineItemsEditor items={invoice?.items ?? selectedEstimate?.items} />
-      <div className="grid gap-4 lg:grid-cols-3">
-        <Field labelText="Discount">
-          <input name="discount" type="number" step="0.01" defaultValue={valueOf(invoice?.discount)} className={inputClass} />
-        </Field>
-        <Field labelText="Paid amount">
-          <input name="paidAmount" type="number" step="0.01" defaultValue={valueOf(invoice?.paidAmount)} className={inputClass} />
-        </Field>
-        <Field labelText="Notes">
-          <input name="notes" defaultValue={invoice?.notes ?? ""} className={inputClass} />
-        </Field>
+
+      <FormSection title="Service Summary" className="mt-4">
+        <textarea name="notes" defaultValue={serviceSummary} className={jobCardTextareaClass} />
+      </FormSection>
+
+      <div className="mt-4">
+        <LineItemsEditor items={initialItems} showRemarks />
       </div>
-      <SubmitButton>{invoice ? "Update invoice" : "Create invoice"}</SubmitButton>
+
+      <FormSection title="Payment Details" className="mt-4">
+        <div className="grid gap-4 lg:grid-cols-3">
+          <JobCardField labelText="Discount">
+            <input name="discount" type="number" step="0.01" defaultValue={valueOf(invoice?.discount)} className={jobCardInputClass} />
+          </JobCardField>
+          <JobCardField labelText="Paid Amount">
+            <input
+              name="paidAmount"
+              type="number"
+              step="0.01"
+              defaultValue={valueOf(invoice?.paidAmount) || valueOf(selectedEstimate?.advanceReceived)}
+              className={jobCardInputClass}
+            />
+          </JobCardField>
+          <JobCardField labelText="Delivery Status">
+            <input name="deliveryStatus" defaultValue={invoice?.deliveryStatus ?? "Pending"} className={jobCardInputClass} />
+          </JobCardField>
+        </div>
+      </FormSection>
+
+      <div className="mt-4 grid gap-4 md:grid-cols-2">
+        <FormSection title="Important Notes">
+          <ul className="list-disc space-y-1 pl-5 text-xs font-semibold leading-5">
+            <li>Invoice generated after service completion.</li>
+            <li>No GST applicable.</li>
+            <li>Parts once fitted will not be taken back.</li>
+            <li>Payment to be completed before vehicle delivery.</li>
+          </ul>
+        </FormSection>
+        <FormSection title="Terms & Conditions">
+          <ul className="list-disc space-y-1 pl-5 text-xs font-semibold leading-5">
+            <li>All parts are genuine / good quality.</li>
+            <li>Workshop not liable for valuables left inside the vehicle.</li>
+            <li>No warranty on A/C gas refilling.</li>
+            <li>Rework will be chargeable if due to misuse.</li>
+          </ul>
+        </FormSection>
+      </div>
+
+      <div className="mt-5 flex justify-end">
+        <SubmitButton>{invoice ? "Update invoice" : "Create invoice"}</SubmitButton>
+      </div>
     </form>
   );
 }

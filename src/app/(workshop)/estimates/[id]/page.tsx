@@ -60,10 +60,10 @@ export default async function EstimateDetailPage({
           <ReceiptText className="h-4 w-4" />
           {existingInvoice ? "View Invoice" : "Create Invoice"}
         </Button>
-        <Button href={`/estimates/${estimate.id}/print`} variant="secondary">
+        <a href={`/estimates/${estimate.id}/pdf`} download className={externalButtonClass}>
           <FileDown className="h-4 w-4" />
           Download PDF
-        </Button>
+        </a>
         <a
           href={createWhatsAppLink(estimate.customer.whatsapp || estimate.customer.mobile, message)}
           target="_blank"

@@ -2,12 +2,13 @@
 
 import { Plus, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
-import { label } from "@/lib/utils";
 
 type Decimalish = number | string | { toString(): string } | null | undefined;
 
 export type EditableLineItem = {
+  partService?: string | null;
   description: string;
+  remarks?: string | null;
   category: string;
   quantity: Decimalish;
   unitPrice: Decimalish;
@@ -15,7 +16,9 @@ export type EditableLineItem = {
 
 type Row = {
   id: string;
+  partService: string;
   description: string;
+  remarks: string;
   category: "PARTS" | "LABOUR";
   quantity: string;
   unitPrice: string;
@@ -38,23 +41,48 @@ function money(value: number) {
   }).format(Number.isFinite(value) ? value : 0);
 }
 
+function normalizeCategory(category: string): Row["category"] {
+  return category === "PARTS" || category === "OTHER" ? "PARTS" : "LABOUR";
+}
+
 function normalizeItem(item: EditableLineItem, index: number): Row {
-  const category = item.category === "PARTS" || item.category === "OTHER" ? "PARTS" : "LABOUR";
+  const category = normalizeCategory(item.category);
+  const partService = item.partService || item.description;
+
   return {
-    id: `${category}-${index}-${item.description}`,
-    description: item.description,
+    id: `${category}-${index}-${partService}`,
+    partService,
+    description: item.partService ? item.description : "",
+    remarks: item.remarks ?? "",
     category,
-    quantity: valueOf(item.quantity),
+    quantity: valueOf(item.quantity) || "1",
     unitPrice: valueOf(item.unitPrice),
   };
 }
 
-const inputClass =
-  "h-10 w-full rounded-lg border border-[#e2beb8] bg-[#fffaf7] px-3 text-sm font-semibold text-[#2f1233] outline-none transition placeholder:text-[#a88996] focus:border-[#d97873] focus:ring-2 focus:ring-[#f8cdbf]";
+function blankRow(category: Row["category"]): Row {
+  return {
+    id: `${category}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    partService: "",
+    description: "",
+    remarks: "",
+    category,
+    quantity: "1",
+    unitPrice: "",
+  };
+}
 
-export function LineItemsEditor({ items = [] }: { items?: EditableLineItem[] }) {
-  const initialRows = items.length ? items.map(normalizeItem) : [];
-  const [rows, setRows] = useState<Row[]>(initialRows);
+const inputClass =
+  "h-10 w-full rounded-md border-[1.5px] border-[#e3c0c9] bg-white px-2 text-sm text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-[#8b0f2f] focus:ring-4 focus:ring-[#8b0f2f]/10";
+
+export function LineItemsEditor({
+  items = [],
+  showRemarks = false,
+}: {
+  items?: EditableLineItem[];
+  showRemarks?: boolean;
+}) {
+  const [rows, setRows] = useState<Row[]>(items.length ? items.map(normalizeItem) : []);
 
   const totals = useMemo(() => {
     return rows.reduce(
@@ -69,16 +97,7 @@ export function LineItemsEditor({ items = [] }: { items?: EditableLineItem[] }) 
   }, [rows]);
 
   function addRow(category: Row["category"]) {
-    setRows((current) => [
-      ...current,
-      {
-        id: `${category}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-        description: "",
-        category,
-        quantity: "1",
-        unitPrice: "",
-      },
-    ]);
+    setRows((current) => [...current, blankRow(category)]);
   }
 
   function updateRow(id: string, field: keyof Row, value: string) {
@@ -91,42 +110,55 @@ export function LineItemsEditor({ items = [] }: { items?: EditableLineItem[] }) 
 
   function section(category: Row["category"], title: string, empty: string) {
     const sectionRows = rows.filter((row) => row.category === category);
+    const amountColSpan = showRemarks ? 5 : 4;
 
     return (
-      <section className="overflow-hidden rounded-lg border border-[#e7c9c1] bg-[#fffaf5]">
-        <div className="bg-[#f8e7df] px-4 py-3 text-xs font-black uppercase tracking-[0.18em] text-[#5a173b]">
+      <section className="overflow-hidden rounded-lg border-[1.5px] border-[#d9a5b3] bg-white">
+        <div className="inline-flex min-h-10 items-center rounded-br-md bg-[#8b0f2f] px-4 text-sm font-black uppercase tracking-wide text-white">
           {title}
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[760px] border-collapse text-sm">
-            <thead className="bg-[#fff1e8] text-xs uppercase text-[#a55667]">
-              <tr>
-                <th className="px-3 py-2 text-left">#</th>
-                <th className="px-3 py-2 text-left">{category === "PARTS" ? "Part Name" : "Service Name"}</th>
-                <th className="px-3 py-2 text-left">Qty</th>
-                <th className="px-3 py-2 text-left">Unit Price</th>
-                <th className="px-3 py-2 text-right">Amount</th>
-                <th className="px-3 py-2 text-right">Action</th>
+        <div className="overflow-x-auto p-4">
+          <table className="w-full min-w-[920px] border-collapse text-sm">
+            <thead>
+              <tr className="bg-[#fff3f6] text-[#650820]">
+                <th className="border border-[#ead0d7] px-2 py-2 uppercase">Sr. No.</th>
+                <th className="border border-[#ead0d7] px-2 py-2 uppercase">Part / Service</th>
+                <th className="border border-[#ead0d7] px-2 py-2 uppercase">Description</th>
+                <th className="border border-[#ead0d7] px-2 py-2 uppercase">Qty.</th>
+                <th className="border border-[#ead0d7] px-2 py-2 uppercase">Unit Price</th>
+                <th className="border border-[#ead0d7] px-2 py-2 uppercase">Amount</th>
+                {showRemarks ? <th className="border border-[#ead0d7] px-2 py-2 uppercase">Remarks</th> : null}
+                <th className="border border-[#ead0d7] px-2 py-2 uppercase">Action</th>
               </tr>
             </thead>
             <tbody>
               {sectionRows.length ? (
                 sectionRows.map((row, index) => {
                   const amount = numberFrom(row.quantity) * numberFrom(row.unitPrice);
+
                   return (
-                    <tr key={row.id} className="border-t border-[#f1ddd6]">
-                      <td className="px-3 py-2 font-bold text-[#a55667]">{index + 1}</td>
-                      <td className="px-3 py-2">
+                    <tr key={row.id}>
+                      <td className="border border-[#ead0d7] px-2 py-2 text-center font-semibold">{index + 1}</td>
+                      <td className="border border-[#ead0d7] px-2 py-2">
                         <input type="hidden" name="itemCategory" value={row.category === "PARTS" ? "PARTS" : "LABOUR"} />
+                        <input
+                          name="itemPartService"
+                          value={row.partService}
+                          onChange={(event) => updateRow(row.id, "partService", event.target.value)}
+                          placeholder={category === "PARTS" ? "Cabin Air Filter" : "General Check & Labour"}
+                          className={inputClass}
+                        />
+                      </td>
+                      <td className="border border-[#ead0d7] px-2 py-2">
                         <input
                           name="itemDescription"
                           value={row.description}
                           onChange={(event) => updateRow(row.id, "description", event.target.value)}
-                          placeholder={category === "PARTS" ? "Cabin Air Filter" : "General Labour"}
+                          placeholder={category === "PARTS" ? "Replace Cabin Air Filter" : "Labour charge"}
                           className={inputClass}
                         />
                       </td>
-                      <td className="px-3 py-2">
+                      <td className="border border-[#ead0d7] px-2 py-2">
                         <input
                           name="itemQuantity"
                           value={row.quantity}
@@ -135,22 +167,38 @@ export function LineItemsEditor({ items = [] }: { items?: EditableLineItem[] }) 
                           className={inputClass}
                         />
                       </td>
-                      <td className="px-3 py-2">
+                      <td className="border border-[#ead0d7] px-2 py-2">
                         <input
                           name="itemUnitPrice"
+                          type="number"
+                          step="0.01"
                           value={row.unitPrice}
                           onChange={(event) => updateRow(row.id, "unitPrice", event.target.value)}
                           placeholder="0.00"
                           className={inputClass}
                         />
                       </td>
-                      <td className="px-3 py-2 text-right font-bold text-[#2f1233]">Rs. {money(amount)}</td>
-                      <td className="px-3 py-2 text-right">
+                      <td className="border border-[#ead0d7] px-2 py-2 text-right font-bold text-[#650820]">
+                        {money(amount)}
+                      </td>
+                      {showRemarks ? (
+                        <td className="border border-[#ead0d7] px-2 py-2">
+                          <input
+                            name="itemRemarks"
+                            value={row.remarks}
+                            onChange={(event) => updateRow(row.id, "remarks", event.target.value)}
+                            placeholder={category === "PARTS" ? "Replaced" : "Labour"}
+                            className={inputClass}
+                          />
+                        </td>
+                      ) : null}
+                      <td className="border border-[#ead0d7] px-2 py-2 text-center">
                         <button
                           type="button"
                           onClick={() => removeRow(row.id)}
-                          className="inline-flex h-9 items-center justify-center rounded-lg border border-[#efb6bd] px-3 text-sm font-bold text-[#9d2f47] hover:bg-[#fde2e2]"
-                          aria-label={`Remove ${label(category)}`}
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#ffe5ec] text-[#650820] transition hover:bg-[#8b0f2f] hover:text-white"
+                          aria-label={`Remove ${title}`}
+                          title="Remove row"
                         >
                           <Trash2 className="h-4 w-4" />
                         </button>
@@ -160,37 +208,55 @@ export function LineItemsEditor({ items = [] }: { items?: EditableLineItem[] }) 
                 })
               ) : (
                 <tr>
-                  <td colSpan={6} className="px-4 py-6 text-center text-sm font-semibold italic text-[#a88996]">
+                  <td className="border border-[#ead0d7] px-3 py-5 text-center text-sm font-semibold text-slate-500" colSpan={showRemarks ? 8 : 7}>
                     {empty}
                   </td>
                 </tr>
               )}
             </tbody>
+            <tfoot>
+              <tr className="bg-[#fff3f6] font-black text-[#650820]">
+                <td className="border border-[#ead0d7] px-3 py-2 text-right uppercase" colSpan={amountColSpan}>
+                  Total
+                </td>
+                <td className="border border-[#ead0d7] px-3 py-2 text-right">{money(category === "PARTS" ? totals.parts : totals.labour)}</td>
+                <td className="border border-[#ead0d7]" colSpan={showRemarks ? 2 : 1} />
+              </tr>
+            </tfoot>
           </table>
-        </div>
-        <div className="flex items-center justify-between gap-3 border-t border-[#f1ddd6] px-4 py-3">
-          <button
-            type="button"
-            onClick={() => addRow(category)}
-            className="inline-flex h-10 items-center gap-2 rounded-lg px-3 text-sm font-black text-[#5a173b] hover:bg-[#fff1e8]"
-          >
-            <Plus className="h-4 w-4" />
-            Add {category === "PARTS" ? "Part" : "Service"}
-          </button>
-          <p className="text-sm font-black text-[#4b1737]">Total: Rs. {money(category === "PARTS" ? totals.parts : totals.labour)}</p>
+
+          <div className="mt-3 flex justify-start">
+            <button
+              type="button"
+              onClick={() => addRow(category)}
+              className="inline-flex h-10 items-center gap-2 rounded-md bg-[#8b0f2f] px-4 text-sm font-black text-white transition hover:bg-[#650820]"
+            >
+              <Plus className="h-4 w-4" />
+              Add {category === "PARTS" ? "Part / Material" : "Labour / Service"}
+            </button>
+          </div>
         </div>
       </section>
     );
   }
 
   return (
-    <div className="grid gap-5">
-      {section("PARTS", "Parts / Materials", "No parts added yet")}
-      {section("LABOUR", "Labour / Services", "No services added yet")}
-      <div className="ml-auto grid w-full max-w-sm gap-2 rounded-lg border border-[#e7c9c1] bg-[#f8e7df] p-4 text-sm font-semibold text-[#4b1737]">
-        <div className="flex justify-between"><span>Parts Total</span><strong>Rs. {money(totals.parts)}</strong></div>
-        <div className="flex justify-between"><span>Labour Total</span><strong>Rs. {money(totals.labour)}</strong></div>
-        <div className="flex justify-between border-t border-[#d7a9ad] pt-2 text-base"><span>Grand Total</span><strong>Rs. {money(totals.parts + totals.labour)}</strong></div>
+    <div className="grid gap-4">
+      {section("PARTS", "Parts / Materials", "Click Add Part / Material to enter items.")}
+      {section("LABOUR", "Labour / Services", "Click Add Labour / Service to enter items.")}
+      <div className="ml-auto grid w-full max-w-sm gap-2 rounded-lg border-[1.5px] border-[#d9a5b3] bg-[#fff3f6] p-4 text-sm font-bold text-[#650820]">
+        <div className="flex justify-between">
+          <span>Parts Total</span>
+          <strong>{money(totals.parts)}</strong>
+        </div>
+        <div className="flex justify-between">
+          <span>Labour Total</span>
+          <strong>{money(totals.labour)}</strong>
+        </div>
+        <div className="flex justify-between border-t border-[#d9a5b3] pt-2 text-base">
+          <span>Grand Total</span>
+          <strong>{money(totals.parts + totals.labour)}</strong>
+        </div>
       </div>
     </div>
   );

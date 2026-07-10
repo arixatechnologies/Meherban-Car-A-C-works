@@ -62,10 +62,10 @@ export default async function InvoiceDetailPage({
           <CreditCard className="h-4 w-4" />
           Record Payment
         </Button>
-        <Button href={`/invoices/${invoice.id}/print`} variant="secondary">
+        <a href={`/invoices/${invoice.id}/pdf`} download className={externalButtonClass}>
           <FileDown className="h-4 w-4" />
           Download PDF
-        </Button>
+        </a>
         <a
           href={createWhatsAppLink(invoice.customer.whatsapp || invoice.customer.mobile, message)}
           target="_blank"

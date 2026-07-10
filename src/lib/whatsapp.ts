@@ -163,7 +163,7 @@ export async function saveManualWhatsAppMessage(input: SendMessageInput) {
 }
 
 export function jobCardCreatedBody(context: MessageContext) {
-  return `Hello ${context.customerName}, your vehicle ${context.vehicleNumber} has been received at Meherban Car A/C Works.
+  return `Hello ${context.customerName}, your vehicle ${context.vehicleNumber} has been received at Meharban Car A/C Works.
 
 Job Card No: ${context.jobCardNumber}
 
@@ -207,7 +207,7 @@ ${trackingLink(context)}`;
 }
 
 export function workStartedBody(context: MessageContext) {
-  return `Hello ${context.customerName}, service work has started for your vehicle ${context.vehicleNumber} at Meherban Car A/C Works.
+  return `Hello ${context.customerName}, service work has started for your vehicle ${context.vehicleNumber} at Meharban Car A/C Works.
 
 We will update you once the vehicle is ready.
 
@@ -218,7 +218,7 @@ ${trackingLink(context)}`;
 export function vehicleReadyBody(context: MessageContext) {
   return `Good news ${context.customerName}! Your vehicle ${context.vehicleNumber} is ready for delivery.
 
-Please visit Meherban Car A/C Works to collect your vehicle.
+Please visit Meharban Car A/C Works to collect your vehicle.
 
 Track status:
 ${trackingLink(context)}`;
@@ -246,7 +246,7 @@ Please complete the payment at the time of delivery.`;
 }
 
 export function vehicleDeliveredBody(context: MessageContext) {
-  return `Thank you ${context.customerName} for choosing Meherban Car A/C Works.
+  return `Thank you ${context.customerName} for choosing Meharban Car A/C Works.
 
 Your vehicle ${context.vehicleNumber} has been delivered successfully.
 
@@ -257,7 +257,7 @@ ${trackingLink(context)}`;
 }
 
 export function feedbackRequestBody(context: MessageContext) {
-  return `Hello ${context.customerName}, thank you for visiting Meherban Car A/C Works.
+  return `Hello ${context.customerName}, thank you for visiting Meharban Car A/C Works.
 
 Please share your service feedback:
 ${trackingLink(context)}`;

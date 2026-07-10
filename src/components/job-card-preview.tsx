@@ -3,6 +3,7 @@ import {
   Car,
   Check,
   ClipboardList,
+  AlertTriangle,
   MapPin,
   MessageCircle,
   Package,
@@ -83,10 +84,10 @@ function Box({
 
 function InfoRow({ labelText, value }: { labelText: string; value: ReactNode }) {
   return (
-    <div className="grid grid-cols-[118px_10px_1fr] gap-2 text-[13px] leading-6">
+    <div className="grid min-w-0 grid-cols-[118px_10px_minmax(0,1fr)] gap-2 text-[13px] leading-6">
       <dt className="font-bold text-slate-950">{labelText}</dt>
       <dd className="font-bold text-slate-700">:</dd>
-      <dd className="text-slate-950">{value || "-"}</dd>
+      <dd className="min-w-0 break-words text-slate-950">{value || "-"}</dd>
     </div>
   );
 }
@@ -94,13 +95,14 @@ function InfoRow({ labelText, value }: { labelText: string; value: ReactNode }) 
 function StatusMark({ status }: { status: InspectionStatus }) {
   const classes = {
     OK: "border-emerald-500 text-emerald-600",
-    ATTENTION: "border-orange-500 text-orange-500",
+    ATTENTION: "border-yellow-400 bg-yellow-300 text-yellow-950",
     NOT_OK: "border-red-500 text-red-600",
   }[status];
 
   return (
     <span className={`mx-auto grid h-5 w-5 place-items-center border-2 ${classes}`}>
       {status === "OK" ? <Check className="h-4 w-4" /> : null}
+      {status === "ATTENTION" ? <AlertTriangle className="h-3.5 w-3.5" /> : null}
       {status === "NOT_OK" ? <X className="h-4 w-4" /> : null}
     </span>
   );
@@ -162,12 +164,12 @@ export async function JobCardPreview({ id }: { id: string }) {
 
   if (!jobCard) notFound();
 
-  const serviceAdvisorName = jobCard.serviceAdvisorName || jobCard.serviceAdvisor?.name || "Meherban";
+  const serviceAdvisorName = jobCard.serviceAdvisorName || jobCard.serviceAdvisor?.name || "Meharban";
   const latestInvoice = jobCard.invoices[0];
   const latestEstimate = jobCard.estimates[0];
   const invoiceOrEstimateItems = (latestInvoice?.items ?? latestEstimate?.items ?? []).map((item) => ({
-    partService: label(item.category),
-    description: item.description,
+    partService: item.partService || item.description,
+    description: item.partService ? item.description : label(item.category),
     quantity: decimalToNumber(item.quantity),
     unitPrice: item.unitPrice,
     amount: item.amount,
@@ -194,7 +196,7 @@ export async function JobCardPreview({ id }: { id: string }) {
   const workItems = splitNotes(jobCard.workSuggested);
   const requiredParts = splitNotes(jobCard.partsRequired);
   const terms = splitNotes(setting?.jobCardTerms);
-  const workshopName = setting?.workshopName || "Meherban Car A/C Works";
+  const workshopName = setting?.workshopName || "Meharban Car A/C Works";
   const tagline = setting?.tagline || "Complete Car A/C Service & Repair Specialist";
   const phoneNumber = setting?.phoneNumber || setting?.whatsappNumber || defaultPhoneNumber;
   const address = setting?.address || defaultAddress;
@@ -406,7 +408,7 @@ export async function JobCardPreview({ id }: { id: string }) {
           <BadgeIndianRupee className="h-5 w-5" />
           Payment Details
         </div>
-        <dl className="grid gap-3 px-4 py-3 text-[12px] font-semibold md:grid-cols-4">
+        <dl className="grid gap-3 px-4 py-3 text-[12px] font-semibold sm:grid-cols-2 lg:grid-cols-4 print:grid-cols-2">
           <InfoRow labelText="Total Amount" value={totalAmount ? formatMoney(totalAmount) : "-"} />
           <InfoRow labelText="UPI / Cash" value={paymentModes} />
           <InfoRow labelText="Advance" value={advanceAmount ? formatMoney(advanceAmount) : "-"} />

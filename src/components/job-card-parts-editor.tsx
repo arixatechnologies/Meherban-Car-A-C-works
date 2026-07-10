@@ -110,19 +110,19 @@ export function JobCardPartsEditor({
   paymentMode?: string | null;
 }) {
   const [rows, setRows] = useState<ObservationRow[]>(() => makeInitialRows(observations));
-  const [manualTotal, setManualTotal] = useState(() => toInputValue(totalAmount));
   const [advance, setAdvance] = useState(() => toInputValue(advanceAmount));
 
   const rowsTotal = useMemo(
     () => rows.reduce((sum, row) => sum + toNumber(row.amount), 0),
     [rows],
   );
-  const totalValue = manualTotal || moneyInput(rowsTotal);
+  const savedTotal = toInputValue(totalAmount);
+  const totalValue = rows.length ? moneyInput(rowsTotal) : savedTotal;
   const balanceValue = useMemo(() => {
     const submittedBalance = toInputValue(balanceDue);
-    if (submittedBalance && !manualTotal && rowsTotal === 0) return submittedBalance;
+    if (submittedBalance && !rows.length && !totalValue) return submittedBalance;
     return Math.max(toNumber(totalValue) - toNumber(advance), 0).toFixed(2);
-  }, [advance, balanceDue, manualTotal, rowsTotal, totalValue]);
+  }, [advance, balanceDue, rows.length, totalValue]);
 
   function updateRow(index: number, field: keyof ObservationRow, value: string) {
     setRows((currentRows) =>
@@ -293,9 +293,9 @@ export function JobCardPartsEditor({
               name="estimatedTotalAmount"
               type="number"
               step="0.01"
+              readOnly
               value={totalValue}
               placeholder="2350"
-              onChange={(event) => setManualTotal(event.target.value)}
               className={inputClass}
             />
           </label>

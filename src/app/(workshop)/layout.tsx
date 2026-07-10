@@ -36,10 +36,10 @@ export default async function WorkshopLayout({ children }: { children: ReactNode
         <div className="flex flex-col gap-3 px-4 py-4 xl:flex-row xl:items-center xl:justify-between xl:px-8">
           <div className="flex min-w-64 items-center gap-3">
             <div className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-full border-2 border-[#5a173b] bg-white p-1">
-              <Image src="/logo.png" alt="Meherban Car A/C Works logo" width={42} height={42} className="h-full w-full object-contain" priority />
+              <Image src="/logo.png" alt="Meharban Car A/C Works logo" width={42} height={42} className="h-full w-full object-contain" priority />
             </div>
             <div>
-              <p className="font-display text-xl font-bold text-[#2d1030]">Meherban Car A/C Works</p>
+              <p className="font-display text-xl font-bold text-[#2d1030]">Meharban Car A/C Works</p>
               <p className="text-xs font-bold uppercase tracking-wide text-[#a55667]">Service Management</p>
             </div>
           </div>
