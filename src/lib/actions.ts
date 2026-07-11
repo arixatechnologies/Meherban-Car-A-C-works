@@ -72,6 +72,22 @@ function clearFailedLogins(email: string) {
   loginAttempts.delete(loginAttemptKey(email));
 }
 
+function loginSetupErrorMessage(error: unknown) {
+  if (!(error instanceof Error)) {
+    return "Server setup issue. Check Vercel environment variables.";
+  }
+
+  if (error.message.includes("DATABASE_URL")) {
+    return "Server setup issue: DATABASE_URL is missing or invalid in Vercel.";
+  }
+
+  if (error.message.includes("NEXTAUTH_SECRET") || error.message.includes("AUTH_SECRET")) {
+    return "Server setup issue: NEXTAUTH_SECRET must be set in Vercel Production.";
+  }
+
+  return "Server setup issue. Check Vercel function logs.";
+}
+
 function str(formData: FormData, key: string) {
   const value = formData.get(key);
   return typeof value === "string" ? value.trim() : "";
@@ -404,7 +420,13 @@ export async function loginAction(
     return { message: "Invalid user name or password." };
   }
 
-  const user = await verifyLogin(email, password);
+  let user;
+  try {
+    user = await verifyLogin(email, password);
+  } catch (error) {
+    console.error("[loginAction] Login verification failed", error);
+    return { message: loginSetupErrorMessage(error) };
+  }
 
   if (!user) {
     recordFailedLogin(email);
@@ -412,7 +434,13 @@ export async function loginAction(
   }
 
   clearFailedLogins(email);
-  await setSessionCookie(user);
+  try {
+    await setSessionCookie(user);
+  } catch (error) {
+    console.error("[loginAction] Session creation failed", error);
+    return { message: loginSetupErrorMessage(error) };
+  }
+
   redirect("/");
 }
 
