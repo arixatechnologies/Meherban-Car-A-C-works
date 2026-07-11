@@ -17,9 +17,9 @@ export type SessionUser = {
 };
 
 function sessionSecret() {
-  const secret = process.env.NEXTAUTH_SECRET;
+  const secret = process.env.NEXTAUTH_SECRET || process.env.AUTH_SECRET;
   if (process.env.NODE_ENV === "production" && (!secret || secret.length < 32)) {
-    throw new Error("NEXTAUTH_SECRET must be set to at least 32 characters in production.");
+    throw new Error("NEXTAUTH_SECRET or AUTH_SECRET must be set to at least 32 characters in production.");
   }
 
   return new TextEncoder().encode(

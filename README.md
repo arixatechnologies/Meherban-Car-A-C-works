@@ -73,13 +73,14 @@ If your password has special characters, URL-encode the password before putting 
 - `npm run prisma:migrate`
 - `npm run prisma:migrate:dev`
 - `npm run prisma:seed`
+- `npm run prisma:create-admin`
 
 ## Default Admin Login
 
-- Email: `admin@meharbanacworks.com`
-- Password: `admin12345`
+- Email: `meharbancaracwork@gmail.com`
+- Password: `Meharban@786`
 
-The seed script hashes the password before storing it.
+The admin script hashes the password before storing it and does not delete existing data.
 
 ## Vercel Demo Deployment
 
@@ -87,7 +88,10 @@ The seed script hashes the password before storing it.
 2. Add `DATABASE_URL` in Vercel using Supavisor Transaction pooler port `6543`.
 3. Add `DIRECT_URL` in Vercel using Supavisor Session pooler port `5432` or Direct connection.
 4. Add `DATABASE_POOL_MAX="1"`.
-5. Add `NEXTAUTH_SECRET`.
+5. Add `NEXTAUTH_SECRET` with at least 32 characters. Generate one with:
+   ```bash
+   node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+   ```
 6. Add `NEXTAUTH_URL` with the Vercel domain.
 7. Add `NEXT_PUBLIC_APP_URL` with the Vercel domain.
 8. Add WhatsApp variables only when ready.
@@ -95,7 +99,11 @@ The seed script hashes the password before storing it.
    ```bash
    npx prisma migrate deploy
    ```
-10. Deploy the Next.js app on Vercel.
+10. Create or reset the admin login user without deleting business data:
+   ```bash
+   npm run prisma:create-admin
+   ```
+11. Deploy or redeploy the Next.js app on Vercel.
 
 ## Hostinger VPS Production Notes
 
