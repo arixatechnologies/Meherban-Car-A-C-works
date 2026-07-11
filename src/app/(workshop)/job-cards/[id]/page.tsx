@@ -1,5 +1,6 @@
-import { Calculator, Edit, FileDown, MessageCircle, Trash2 } from "lucide-react";
+import { Calculator, Edit, Trash2 } from "lucide-react";
 import { notFound } from "next/navigation";
+import { PdfDownloadIcon, WhatsAppIcon } from "@/components/action-icons";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { DocumentChain } from "@/components/document-chain";
 import { JobCardPreview } from "@/components/job-card-preview";
@@ -7,7 +8,6 @@ import { Button } from "@/components/ui";
 import { deleteJobCard } from "@/lib/actions";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { cn } from "@/lib/utils";
 import { createWhatsAppLink, jobCardCreatedBody } from "@/lib/whatsapp";
 
 export const dynamic = "force-dynamic";
@@ -49,9 +49,10 @@ export default async function JobCardDetailPage({
     jobCardNumber: jobCard.jobCardNumber,
     trackingToken: jobCard.trackingToken,
   });
-  const externalButtonClass = cn(
-    "inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-[#e7c9c1] bg-[#fff8f2] px-4 text-sm font-bold text-[#4b1737] transition hover:bg-[#f4ded6] focus:outline-none focus:ring-2 focus:ring-[#d97873] focus:ring-offset-2",
-  );
+  const pdfButtonClass =
+    "inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-[#f1b8b8] bg-[#fff0f0] px-4 text-sm font-bold text-[#c62828] transition hover:bg-[#ffe0e0] focus:outline-none focus:ring-2 focus:ring-[#e05252] focus:ring-offset-2";
+  const whatsappButtonClass =
+    "inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-[#9bd7ad] bg-[#e8f8ed] px-4 text-sm font-bold text-[#128c3a] transition hover:bg-[#d8f2df] focus:outline-none focus:ring-2 focus:ring-[#25d366] focus:ring-offset-2";
 
   return (
     <div className="grid gap-4">
@@ -60,17 +61,17 @@ export default async function JobCardDetailPage({
           <Calculator className="h-4 w-4" />
           {latestEstimate ? "View Estimation" : "Create Estimation"}
         </Button>
-        <a href={`/job-cards/${jobCard.id}/pdf`} download className={externalButtonClass}>
-          <FileDown className="h-4 w-4" />
+        <a href={`/job-cards/${jobCard.id}/pdf`} download className={pdfButtonClass}>
+          <PdfDownloadIcon />
           Download PDF
         </a>
         <a
           href={createWhatsAppLink(jobCard.customer.whatsapp || jobCard.customer.mobile, message)}
           target="_blank"
           rel="noreferrer"
-          className={externalButtonClass}
+          className={whatsappButtonClass}
         >
-          <MessageCircle className="h-4 w-4" />
+          <WhatsAppIcon className="h-4 w-4" />
           WhatsApp Share
         </a>
         <Button href={`/job-cards/${jobCard.id}/edit`} variant="secondary">

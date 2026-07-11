@@ -1,7 +1,8 @@
 "use client";
 
-import { Eye, MessageCircle, MoreHorizontal, Trash2 } from "lucide-react";
+import { MoreHorizontal, Trash2 } from "lucide-react";
 import Link from "next/link";
+import { PreviewIcon, WhatsAppIcon } from "@/components/action-icons";
 
 type DeleteAction = () => Promise<void>;
 
@@ -29,16 +30,16 @@ export function RowActionMenu({
           href={previewHref}
           className="flex items-center gap-2 px-3 py-2 text-sm font-bold text-[#4b1737] hover:bg-[#fff1e8]"
         >
-          <Eye className="h-4 w-4" />
+          <PreviewIcon />
           Preview
         </Link>
         <a
           href={whatsappHref}
           target="_blank"
           rel="noreferrer"
-          className="flex items-center gap-2 px-3 py-2 text-sm font-bold text-[#4b1737] hover:bg-[#fff1e8]"
+          className="flex items-center gap-2 px-3 py-2 text-sm font-bold text-[#128c3a] hover:bg-[#e8f8ed]"
         >
-          <MessageCircle className="h-4 w-4" />
+          <WhatsAppIcon className="h-4 w-4" />
           WhatsApp Sharing
         </a>
         <form

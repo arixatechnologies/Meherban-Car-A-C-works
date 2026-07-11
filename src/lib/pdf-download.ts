@@ -110,3 +110,19 @@ export function pdfResponse(pdf: Buffer, filename: string) {
     },
   });
 }
+
+export function pdfErrorResponse(error: unknown) {
+  console.error("[pdf-download]", error);
+  const message =
+    error instanceof Error && error.message.includes("Chrome/Chromium")
+      ? "PDF download is not configured on this server. Install Chrome/Chromium or set CHROME_EXECUTABLE_PATH."
+      : "PDF could not be generated right now. Please try again.";
+
+  return new Response(message, {
+    status: 500,
+    headers: {
+      "Content-Type": "text/plain; charset=utf-8",
+      "Cache-Control": "no-store",
+    },
+  });
+}

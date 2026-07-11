@@ -51,32 +51,37 @@ function extractStatuses(payload: unknown): WebhookStatus[] {
 }
 
 export async function POST(request: Request) {
-  const payload: unknown = await request.json().catch(() => null);
-  const statuses = extractStatuses(payload);
+  try {
+    const payload: unknown = await request.json().catch(() => null);
+    const statuses = extractStatuses(payload);
 
-  for (const status of statuses) {
-    if (!status.id || !status.status) continue;
+    for (const status of statuses) {
+      if (!status.id || !status.status) continue;
 
-    const timestamp = status.timestamp ? new Date(Number(status.timestamp) * 1000) : new Date();
-    await prisma.whatsAppLog.updateMany({
-      where: { apiMessageId: status.id },
-      data: {
-        webhookStatus: status.status,
-        status:
-          status.status === "delivered"
-            ? "DELIVERED"
-            : status.status === "read"
-              ? "READ"
-              : status.status === "failed"
-                ? "FAILED"
-                : undefined,
-        deliveredAt: status.status === "delivered" ? timestamp : undefined,
-        readAt: status.status === "read" ? timestamp : undefined,
-        failedAt: status.status === "failed" ? timestamp : undefined,
-        errorMessage: status.errors?.[0]?.message || status.errors?.[0]?.title,
-      },
-    });
+      const timestamp = status.timestamp ? new Date(Number(status.timestamp) * 1000) : new Date();
+      await prisma.whatsAppLog.updateMany({
+        where: { apiMessageId: status.id },
+        data: {
+          webhookStatus: status.status,
+          status:
+            status.status === "delivered"
+              ? "DELIVERED"
+              : status.status === "read"
+                ? "READ"
+                : status.status === "failed"
+                  ? "FAILED"
+                  : undefined,
+          deliveredAt: status.status === "delivered" ? timestamp : undefined,
+          readAt: status.status === "read" ? timestamp : undefined,
+          failedAt: status.status === "failed" ? timestamp : undefined,
+          errorMessage: status.errors?.[0]?.message || status.errors?.[0]?.title,
+        },
+      });
+    }
+
+    return Response.json({ received: true, statuses: statuses.length });
+  } catch (error) {
+    console.error("[whatsapp-webhook]", error);
+    return Response.json({ received: false, error: "Webhook processing failed." }, { status: 500 });
   }
-
-  return Response.json({ received: true, statuses: statuses.length });
 }

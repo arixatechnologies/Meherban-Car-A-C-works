@@ -4,13 +4,13 @@ import {
   CreditCard,
   LayoutDashboard,
   LogOut,
-  MessageCircle,
   Plus,
   Settings,
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { WhatsAppIcon } from "@/components/action-icons";
 import { Button } from "@/components/ui";
 import { logoutAction } from "@/lib/actions";
 import { requireUser } from "@/lib/auth";
@@ -22,7 +22,7 @@ const navItems = [
   { href: "/", label: "Home", icon: LayoutDashboard },
   { href: "/job-cards", label: "Job Cards", icon: ClipboardList },
   { href: "/payments", label: "Payments", icon: CreditCard },
-  { href: "/whatsapp-logs", label: "WhatsApp Logs", icon: MessageCircle },
+  { href: "/whatsapp-logs", label: "WhatsApp Logs", icon: WhatsAppIcon },
   { href: "/reports", label: "Reports", icon: BarChart3 },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
@@ -68,7 +68,7 @@ export default async function WorkshopLayout({ children }: { children: ReactNode
                 href={item.href}
                 className="inline-flex h-10 shrink-0 items-center gap-2 rounded-lg bg-[#f6e2d6] px-3 text-sm font-bold text-[#4b1737] transition hover:bg-[#5a173b] hover:text-white"
               >
-                <Icon className="h-4 w-4" />
+                <Icon className={item.label === "WhatsApp Logs" ? "h-4 w-4 text-[#128c3a]" : "h-4 w-4"} />
                 {item.label}
               </Link>
             );

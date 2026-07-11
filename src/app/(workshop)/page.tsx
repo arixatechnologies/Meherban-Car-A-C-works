@@ -1,5 +1,6 @@
-import { Eye, FileDown, MessageCircle, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import Link from "next/link";
+import { PdfDownloadIcon, PreviewIcon, WhatsAppIcon } from "@/components/action-icons";
 import { Badge, Button, Card, CardBody, CardHeader, DataTable, PageHeader, inputClass } from "@/components/ui";
 import { prisma } from "@/lib/db";
 import { formatDate } from "@/lib/format";
@@ -22,9 +23,9 @@ function filterHref(type: DocumentType, q: string) {
 function iconActionClass(tone: "view" | "pdf" | "whatsapp") {
   return cn(
     "inline-flex h-9 w-9 items-center justify-center rounded-lg border text-sm transition focus:outline-none focus:ring-2 focus:ring-offset-2",
-    tone === "view" && "border-[#d7a9ad] bg-[#fff1e8] text-[#5a173b] hover:bg-[#f4ded6] focus:ring-[#d97873]",
-    tone === "pdf" && "border-[#e7c9c1] bg-[#fffaf5] text-[#4b1737] hover:bg-[#f4ded6] focus:ring-[#d97873]",
-    tone === "whatsapp" && "border-[#c9d0b1] bg-[#e9ecd9] text-[#4e5d33] hover:bg-[#dfe5c8] focus:ring-[#9fa878]",
+    tone === "view" && "border-[#c8b2d3] bg-[#f5edf8] text-[#5a173b] hover:bg-[#eadce9] focus:ring-[#bca2c9]",
+    tone === "pdf" && "border-[#f1b8b8] bg-[#fff0f0] text-[#c62828] hover:bg-[#ffe0e0] focus:ring-[#e05252]",
+    tone === "whatsapp" && "border-[#9bd7ad] bg-[#e8f8ed] text-[#128c3a] hover:bg-[#d8f2df] focus:ring-[#25d366]",
   );
 }
 
@@ -231,10 +232,10 @@ export default async function HomePage({
               <Badge key="status" value={document.status} />,
               <div key="actions" className="flex items-center gap-2">
                 <Link href={document.href} className={iconActionClass("view")} title="View">
-                  <Eye className="h-4 w-4" />
+                  <PreviewIcon />
                 </Link>
                 <a href={document.pdfHref} download className={iconActionClass("pdf")} title="Download PDF">
-                  <FileDown className="h-4 w-4" />
+                  <PdfDownloadIcon />
                 </a>
                 <a
                   href={createWhatsAppLink(document.mobileNumber, document.message)}
@@ -243,7 +244,7 @@ export default async function HomePage({
                   className={iconActionClass("whatsapp")}
                   title="WhatsApp Share"
                 >
-                  <MessageCircle className="h-4 w-4" />
+                  <WhatsAppIcon className="h-4 w-4" />
                 </a>
               </div>,
             ])}

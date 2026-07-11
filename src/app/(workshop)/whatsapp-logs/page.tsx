@@ -1,5 +1,6 @@
-import { Badge, Button, Card, CardBody, CardHeader, DataTable, PageHeader, SearchBar } from "@/components/ui";
+import { WhatsAppIcon } from "@/components/action-icons";
 import { CopyButton } from "@/components/copy-button";
+import { Badge, Button, Card, CardBody, CardHeader, DataTable, PageHeader, SearchBar } from "@/components/ui";
 import { retryWhatsAppLog } from "@/lib/actions";
 import { prisma } from "@/lib/db";
 import { formatDateTime } from "@/lib/format";
@@ -52,7 +53,14 @@ export default async function WhatsAppLogsPage({
               log.errorMessage ?? "-",
               <div key="actions" className="flex flex-wrap gap-2">
                 <CopyButton text={log.messageBody} />
-                <Button href={createWhatsAppLink(log.mobileNumber, log.messageBody)} variant="secondary">Open</Button>
+                <Button
+                  href={createWhatsAppLink(log.mobileNumber, log.messageBody)}
+                  variant="secondary"
+                  className="border-[#9bd7ad] bg-[#e8f8ed] text-[#128c3a] hover:bg-[#d8f2df]"
+                >
+                  <WhatsAppIcon className="h-4 w-4" />
+                  Open
+                </Button>
                 <form action={retryWhatsAppLog.bind(null, log.id)}>
                   <Button type="submit" variant="secondary">Retry API</Button>
                 </form>

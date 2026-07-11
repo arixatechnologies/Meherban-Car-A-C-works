@@ -39,6 +39,15 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
+.password-mask {
+  -webkit-text-security: disc;
+}
+
+.password-mask::-ms-clear,
+.password-mask::-ms-reveal {
+  display: none;
+}
+
 @media print {
   @page {
     size: A4;

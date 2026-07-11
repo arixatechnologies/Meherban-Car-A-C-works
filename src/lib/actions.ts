@@ -1,7 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
+import { headers } from "next/headers";
+import { redirect, unstable_rethrow } from "next/navigation";
 import {
   EstimateStatus,
   InspectionStatus,
@@ -42,6 +43,94 @@ export type AuthActionState = {
 const maxLoginAttempts = 5;
 const loginLockMs = 15 * 60 * 1000;
 const loginAttempts = new Map<string, { count: number; lockedUntil?: number }>();
+const expectedActionMessages = new Set([
+  "Select an existing customer or enter new customer name and mobile number.",
+  "Select an existing vehicle or enter new vehicle number, brand, model, and fuel type.",
+  "Select existing customer and vehicle, or enter new customer and vehicle details.",
+  "Delete linked estimates and invoices before deleting this job card.",
+  "Delete linked invoices before deleting this estimate.",
+  "Delete is blocked because payments are recorded for this invoice.",
+  "Add at least one parts/materials or labour item.",
+  "Payment amount must be greater than zero.",
+  "Payment amount cannot be more than the invoice balance due.",
+  "Enter customer mobile number and message before sending WhatsApp.",
+]);
+
+function prismaErrorCode(error: unknown) {
+  if (typeof error === "object" && error !== null && "code" in error) {
+    const code = (error as { code?: unknown }).code;
+    return typeof code === "string" ? code : null;
+  }
+
+  return null;
+}
+
+function prismaErrorTarget(error: unknown) {
+  if (typeof error !== "object" || error === null || !("meta" in error)) return "";
+  const meta = (error as { meta?: { target?: unknown } }).meta;
+  const target = meta?.target;
+  if (Array.isArray(target)) return target.join(", ");
+  return typeof target === "string" ? target : "";
+}
+
+function friendlyActionError(error: unknown) {
+  const code = prismaErrorCode(error);
+  const target = prismaErrorTarget(error);
+
+  if (code === "P2002") {
+    if (target.includes("mobile")) return "This customer mobile number already exists.";
+    if (target.includes("vehicleNumber")) return "This vehicle number already exists.";
+    if (target.includes("jobCardNumber")) return "This job card number already exists. Please try again.";
+    if (target.includes("estimateNumber")) return "This estimate number already exists. Please try again.";
+    if (target.includes("invoiceNumber")) return "This invoice number already exists. Please try again.";
+    if (target.includes("email")) return "This email address already exists.";
+    return "This record already exists. Please check duplicate details.";
+  }
+
+  if (code === "P2025") {
+    return "The requested record was not found. It may have been deleted already.";
+  }
+
+  if (error instanceof Error) {
+    if (expectedActionMessages.has(error.message)) return error.message;
+    if (error.message.includes("DATABASE_URL")) return "Database connection is not configured correctly.";
+    if (error.message.includes("NEXTAUTH_SECRET") || error.message.includes("AUTH_SECRET")) {
+      return "Login security secret is not configured correctly.";
+    }
+  }
+
+  return "Something went wrong while saving. Please try again.";
+}
+
+async function currentPathFallback(fallbackPath: string) {
+  const referer = (await headers()).get("referer");
+  if (!referer) return fallbackPath;
+
+  try {
+    const url = new URL(referer);
+    return `${url.pathname}${url.search}`;
+  } catch {
+    return fallbackPath;
+  }
+}
+
+async function handleActionError(label: string, error: unknown, fallbackPath = "/") {
+  unstable_rethrow(error);
+  console.error(`[${label}]`, error);
+  const params = new URLSearchParams({
+    message: friendlyActionError(error),
+    returnTo: await currentPathFallback(fallbackPath),
+  });
+  redirect(`/action-error?${params.toString()}`);
+}
+
+async function runAction<T>(label: string, fallbackPath: string, action: () => Promise<T>) {
+  try {
+    return await action();
+  } catch (error) {
+    return handleActionError(label, error, fallbackPath);
+  }
+}
 
 function loginAttemptKey(email: string) {
   return email || "unknown";
@@ -450,6 +539,7 @@ export async function logoutAction() {
 }
 
 export async function saveJobCard(id: string | null, formData: FormData) {
+  return runAction("saveJobCard", id ? `/job-cards/${id}/edit` : "/job-cards/new", async () => {
   const session = await requireUser([UserRole.ADMIN, UserRole.SERVICE_ADVISOR, UserRole.TECHNICIAN]);
   const complaints = selectedArray(formData, "complaints").filter((value) =>
     complaintOptions.includes(value as (typeof complaintOptions)[number]),
@@ -655,9 +745,11 @@ export async function saveJobCard(id: string | null, formData: FormData) {
 
   revalidatePath("/job-cards");
   redirect(`/job-cards/${jobCard.id}`);
+  });
 }
 
 export async function deleteJobCard(id: string) {
+  return runAction("deleteJobCard", `/job-cards/${id}`, async () => {
   await requireUser([UserRole.ADMIN]);
   const jobCard = await prisma.jobCard.findUnique({
     where: { id },
@@ -683,9 +775,11 @@ export async function deleteJobCard(id: string) {
   revalidatePath("/");
   revalidatePath("/job-cards");
   redirect("/job-cards");
+  });
 }
 
 export async function updateJobCardStatus(jobCardId: string, formData: FormData) {
+  return runAction("updateJobCardStatus", `/job-cards/${jobCardId}`, async () => {
   const session = await requireUser([UserRole.ADMIN, UserRole.SERVICE_ADVISOR, UserRole.TECHNICIAN]);
   const newStatus = str(formData, "newStatus") as JobCardStatus;
   const remarks = optional(str(formData, "remarks"));
@@ -718,9 +812,11 @@ export async function updateJobCardStatus(jobCardId: string, formData: FormData)
 
   revalidatePath(`/job-cards/${jobCardId}`);
   redirect(`/job-cards/${jobCardId}`);
+  });
 }
 
 export async function saveInspection(jobCardId: string, formData: FormData) {
+  return runAction("saveInspection", `/job-cards/${jobCardId}`, async () => {
   await requireUser([UserRole.ADMIN, UserRole.SERVICE_ADVISOR, UserRole.TECHNICIAN]);
   const items = await prisma.jobCardInspectionItem.findMany({ where: { jobCardId } });
 
@@ -736,9 +832,11 @@ export async function saveInspection(jobCardId: string, formData: FormData) {
 
   revalidatePath(`/job-cards/${jobCardId}`);
   redirect(`/job-cards/${jobCardId}`);
+  });
 }
 
 export async function saveEstimate(id: string | null, formData: FormData) {
+  return runAction("saveEstimate", id ? `/estimates/${id}/edit` : "/estimates/new", async () => {
   const session = await requireUser([UserRole.ADMIN, UserRole.SERVICE_ADVISOR]);
   const jobCardId = str(formData, "jobCardId");
   const jobCard = await prisma.jobCard.findUniqueOrThrow({
@@ -746,6 +844,10 @@ export async function saveEstimate(id: string | null, formData: FormData) {
     include: { customer: true, vehicle: true },
   });
   const items = parseLineItems(formData);
+  if (items.length === 0) {
+    throw new Error("Add at least one parts/materials or labour item.");
+  }
+
   const subtotal = items.reduce((sum, item) => sum.add(item.amount), new Prisma.Decimal(0));
   const discount = decimal(str(formData, "discount"));
   const advanceReceived = decimal(str(formData, "advanceReceived"));
@@ -858,9 +960,11 @@ export async function saveEstimate(id: string | null, formData: FormData) {
   revalidatePath("/estimates");
   revalidatePath(`/job-cards/${jobCardId}`);
   redirect(`/estimates/${estimate.id}`);
+  });
 }
 
 export async function deleteEstimate(id: string) {
+  return runAction("deleteEstimate", `/estimates/${id}`, async () => {
   await requireUser([UserRole.ADMIN]);
   const estimate = await prisma.estimate.findUnique({
     where: { id },
@@ -886,9 +990,11 @@ export async function deleteEstimate(id: string) {
   revalidatePath("/estimates");
   revalidatePath(`/job-cards/${estimate.jobCardId}`);
   redirect("/estimates");
+  });
 }
 
 export async function updateEstimateStatus(id: string, status: EstimateStatus) {
+  return runAction("updateEstimateStatus", `/estimates/${id}`, async () => {
   const session = await requireUser([UserRole.ADMIN, UserRole.SERVICE_ADVISOR]);
   const estimate = await prisma.estimate.update({
     where: { id },
@@ -922,16 +1028,20 @@ export async function updateEstimateStatus(id: string, status: EstimateStatus) {
 
   revalidatePath(`/estimates/${id}`);
   redirect(`/estimates/${id}`);
+  });
 }
 
 export async function sendEstimateReminder(id: string) {
+  return runAction("sendEstimateReminder", `/estimates/${id}`, async () => {
   await requireUser([UserRole.ADMIN, UserRole.SERVICE_ADVISOR]);
   await sendEstimateApprovalReminderMessage(await estimateMessageContext(id));
   revalidatePath(`/estimates/${id}`);
   redirect(`/estimates/${id}`);
+  });
 }
 
 export async function saveInvoice(id: string | null, formData: FormData) {
+  return runAction("saveInvoice", id ? `/invoices/${id}/edit` : "/invoices/new", async () => {
   const session = await requireUser([UserRole.ADMIN, UserRole.BILLING_STAFF, UserRole.SERVICE_ADVISOR]);
   const estimateId = optional(str(formData, "estimateId"));
   const estimate = estimateId
@@ -958,6 +1068,10 @@ export async function saveInvoice(id: string | null, formData: FormData) {
           unitPrice: item.unitPrice,
           amount: item.amount,
         })) ?? [];
+  if (items.length === 0) {
+    throw new Error("Add at least one parts/materials or labour item.");
+  }
+
   const subtotal = items.reduce((sum, item) => sum.add(item.amount), new Prisma.Decimal(0));
   const discount = decimal(str(formData, "discount"));
   const paidAmount = decimal(str(formData, "paidAmount"));
@@ -1075,9 +1189,11 @@ export async function saveInvoice(id: string | null, formData: FormData) {
   revalidatePath(`/job-cards/${jobCardId}`);
   if (estimateId) revalidatePath(`/estimates/${estimateId}`);
   redirect(`/invoices/${invoice.id}`);
+  });
 }
 
 export async function deleteInvoice(id: string) {
+  return runAction("deleteInvoice", `/invoices/${id}`, async () => {
   await requireUser([UserRole.ADMIN]);
   const invoice = await prisma.invoice.findUnique({
     where: { id },
@@ -1104,12 +1220,18 @@ export async function deleteInvoice(id: string) {
   revalidatePath(`/job-cards/${invoice.jobCardId}`);
   if (invoice.estimateId) revalidatePath(`/estimates/${invoice.estimateId}`);
   redirect("/invoices");
+  });
 }
 
 export async function recordPayment(formData: FormData) {
+  return runAction("recordPayment", "/payments/new", async () => {
   const session = await requireUser([UserRole.ADMIN, UserRole.BILLING_STAFF]);
   const invoiceId = str(formData, "invoiceId");
   const amount = decimal(str(formData, "amount"));
+  if (amount.lessThanOrEqualTo(0)) {
+    throw new Error("Payment amount must be greater than zero.");
+  }
+
   const invoice = await prisma.invoice.findUniqueOrThrow({
     where: { id: invoiceId },
     include: { payments: true },
@@ -1119,6 +1241,10 @@ export async function recordPayment(formData: FormData) {
     new Prisma.Decimal(0),
   );
   const paidAmount = paidBefore.add(amount);
+  if (paidAmount.greaterThan(invoice.totalAmount)) {
+    throw new Error("Payment amount cannot be more than the invoice balance due.");
+  }
+
   const balanceAmount = nonNegative(invoice.totalAmount.sub(paidAmount));
 
   await prisma.payment.create({
@@ -1145,16 +1271,20 @@ export async function recordPayment(formData: FormData) {
 
   revalidatePath(`/invoices/${invoiceId}`);
   redirect(`/invoices/${invoiceId}`);
+  });
 }
 
 export async function sendInvoiceReminder(id: string) {
+  return runAction("sendInvoiceReminder", `/invoices/${id}`, async () => {
   await requireUser([UserRole.ADMIN, UserRole.BILLING_STAFF, UserRole.SERVICE_ADVISOR]);
   await sendPaymentReminderMessage(await invoiceMessageContext(id));
   revalidatePath(`/invoices/${id}`);
   redirect(`/invoices/${id}`);
+  });
 }
 
 export async function markVehicleReady(jobCardId: string) {
+  return runAction("markVehicleReady", `/job-cards/${jobCardId}`, async () => {
   await requireUser([UserRole.ADMIN, UserRole.SERVICE_ADVISOR, UserRole.TECHNICIAN]);
   await prisma.jobCard.update({
     where: { id: jobCardId },
@@ -1163,9 +1293,11 @@ export async function markVehicleReady(jobCardId: string) {
   await sendVehicleReadyMessage(await jobCardMessageContext(jobCardId));
   revalidatePath(`/job-cards/${jobCardId}`);
   redirect(`/job-cards/${jobCardId}`);
+  });
 }
 
 export async function markVehicleDelivered(jobCardId: string) {
+  return runAction("markVehicleDelivered", `/job-cards/${jobCardId}`, async () => {
   await requireUser([UserRole.ADMIN, UserRole.SERVICE_ADVISOR, UserRole.BILLING_STAFF]);
   await prisma.jobCard.update({
     where: { id: jobCardId },
@@ -1174,15 +1306,22 @@ export async function markVehicleDelivered(jobCardId: string) {
   await sendVehicleDeliveredMessage(await jobCardMessageContext(jobCardId));
   revalidatePath(`/job-cards/${jobCardId}`);
   redirect(`/job-cards/${jobCardId}`);
+  });
 }
 
 export async function sendCustomWhatsApp(formData: FormData) {
+  return runAction("sendCustomWhatsApp", "/whatsapp-logs", async () => {
   await requireUser([UserRole.ADMIN, UserRole.SERVICE_ADVISOR, UserRole.BILLING_STAFF]);
   const returnTo = str(formData, "returnTo") || "/whatsapp-logs";
+  const mobileNumber = str(formData, "mobileNumber");
+  const messageBody = str(formData, "messageBody");
+  if (!mobileNumber || !messageBody) {
+    throw new Error("Enter customer mobile number and message before sending WhatsApp.");
+  }
 
   await sendWhatsAppMessage({
-    mobileNumber: str(formData, "mobileNumber"),
-    messageBody: str(formData, "messageBody"),
+    mobileNumber,
+    messageBody,
     messageType: (str(formData, "messageType") || "CUSTOM") as WhatsAppMessageType,
     customerId: optional(str(formData, "customerId")),
     jobCardId: optional(str(formData, "jobCardId")),
@@ -1192,9 +1331,11 @@ export async function sendCustomWhatsApp(formData: FormData) {
 
   revalidatePath("/whatsapp-logs");
   redirect(returnTo);
+  });
 }
 
 export async function retryWhatsAppLog(logId: string) {
+  return runAction("retryWhatsAppLog", "/whatsapp-logs", async () => {
   await requireUser([UserRole.ADMIN, UserRole.SERVICE_ADVISOR]);
   const log = await prisma.whatsAppLog.findUniqueOrThrow({ where: { id: logId } });
 
@@ -1210,6 +1351,7 @@ export async function retryWhatsAppLog(logId: string) {
 
   revalidatePath("/whatsapp-logs");
   redirect("/whatsapp-logs");
+  });
 }
 
 export async function createInvoiceFromEstimate(estimateId: string) {
@@ -1218,6 +1360,7 @@ export async function createInvoiceFromEstimate(estimateId: string) {
 }
 
 export async function saveSettings(formData: FormData) {
+  return runAction("saveSettings", "/settings", async () => {
   await requireUser([UserRole.ADMIN]);
 
   await prisma.workshopSetting.upsert({
@@ -1275,6 +1418,7 @@ export async function saveSettings(formData: FormData) {
 
   revalidatePath("/settings");
   redirect("/settings");
+  });
 }
 
 export async function preparedInvoiceMessage(invoiceId: string) {
@@ -1284,6 +1428,7 @@ export async function preparedInvoiceMessage(invoiceId: string) {
 }
 
 export async function createPaymentConfirmationLog(invoiceId: string) {
+  return runAction("createPaymentConfirmationLog", `/invoices/${invoiceId}`, async () => {
   await requireUser([UserRole.ADMIN, UserRole.BILLING_STAFF]);
   const context = await invoiceMessageContext(invoiceId);
 
@@ -1299,9 +1444,11 @@ Balance Amount: ${context.balanceAmount ? context.balanceAmount.toString() : "0"
 
   revalidatePath(`/invoices/${invoiceId}`);
   redirect(`/invoices/${invoiceId}`);
+  });
 }
 
 export async function approveEstimateFromTracking(estimateId: string, trackingToken: string) {
+  return runAction("approveEstimateFromTracking", `/track/${trackingToken}`, async () => {
   const estimate = await prisma.estimate.update({
     where: { id: estimateId },
     data: { status: EstimateStatus.APPROVED },
@@ -1312,4 +1459,5 @@ export async function approveEstimateFromTracking(estimateId: string, trackingTo
   });
   revalidatePath(`/track/${trackingToken}`);
   redirect(`/track/${trackingToken}`);
+  });
 }

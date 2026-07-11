@@ -1,9 +1,10 @@
 import { notFound } from "next/navigation";
+import { PdfDownloadIcon, WhatsAppIcon } from "@/components/action-icons";
+import { Badge, Button, Card, CardBody, CardHeader, DataTable, DetailGrid, DetailItem, PageHeader } from "@/components/ui";
 import { approveEstimateFromTracking } from "@/lib/actions";
 import { prisma } from "@/lib/db";
 import { formatDateTime, formatMoney } from "@/lib/format";
 import { createWhatsAppLink } from "@/lib/whatsapp";
-import { Badge, Button, Card, CardBody, CardHeader, DataTable, DetailGrid, DetailItem, PageHeader } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -91,7 +92,14 @@ export default async function TrackingPage({
                 <form action={approveEstimateFromTracking.bind(null, estimate.id, trackingToken)}>
                   <Button type="submit">Approve Estimate</Button>
                 </form>
-                <Button href={`/track/${trackingToken}/estimate`} variant="secondary">Estimate Download</Button>
+                <Button
+                  href={`/track/${trackingToken}/estimate`}
+                  variant="secondary"
+                  className="border-[#f1b8b8] bg-[#fff0f0] text-[#c62828] hover:bg-[#ffe0e0]"
+                >
+                  <PdfDownloadIcon />
+                  Estimate Download
+                </Button>
               </div>
             </CardBody>
           </Card>
@@ -102,7 +110,14 @@ export default async function TrackingPage({
             <CardHeader title="Invoice Status" action={<Badge value={invoice.paymentStatus} />} />
             <CardBody>
               <div className="flex flex-wrap gap-2">
-                <Button href={`/track/${trackingToken}/invoice`} variant="secondary">Invoice Download</Button>
+                <Button
+                  href={`/track/${trackingToken}/invoice`}
+                  variant="secondary"
+                  className="border-[#f1b8b8] bg-[#fff0f0] text-[#c62828] hover:bg-[#ffe0e0]"
+                >
+                  <PdfDownloadIcon />
+                  Invoice Download
+                </Button>
               </div>
             </CardBody>
           </Card>
@@ -113,7 +128,12 @@ export default async function TrackingPage({
           <CardBody>
             <div className="flex flex-wrap gap-2">
               <Button href={`tel:${workshopPhone}`} variant="secondary">Call Workshop</Button>
-              <Button href={createWhatsAppLink(whatsappNumber, `Hello Meharban Car A/C Works, I want an update for ${jobCard.jobCardNumber}.`)} variant="secondary">
+              <Button
+                href={createWhatsAppLink(whatsappNumber, `Hello Meharban Car A/C Works, I want an update for ${jobCard.jobCardNumber}.`)}
+                variant="secondary"
+                className="border-[#9bd7ad] bg-[#e8f8ed] text-[#128c3a] hover:bg-[#d8f2df]"
+              >
+                <WhatsAppIcon className="h-4 w-4" />
                 WhatsApp
               </Button>
               {jobCard.status === "DELIVERED" ? (
