@@ -33,7 +33,7 @@ export default async function TrackingPage({
 
   const estimate = jobCard.estimates[0];
   const invoice = jobCard.invoices[0];
-  const workshopPhone = setting?.phoneNumber || "9876543210";
+  const workshopPhone = setting?.phoneNumber || "7287948037";
   const whatsappNumber = setting?.whatsappNumber || workshopPhone;
 
   return (

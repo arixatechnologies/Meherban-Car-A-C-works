@@ -74,6 +74,8 @@ If your password has special characters, URL-encode the password before putting 
 - `npm run prisma:migrate:dev`
 - `npm run prisma:seed`
 - `npm run prisma:create-admin`
+- `npm run test:e2e`
+- `npm run test:e2e:ui`
 
 ## Default Admin Login
 
@@ -105,6 +107,44 @@ The admin script hashes the password before storing it and does not delete exist
    ```
 11. Deploy or redeploy the Next.js app on Vercel.
 
+## E2E Tests
+
+Run the smoke suite after migrations and admin setup:
+
+```bash
+npm run test:e2e
+```
+
+The tests use `ADMIN_EMAIL` / `ADMIN_PASSWORD` by default. Override with `E2E_ADMIN_EMAIL` and `E2E_ADMIN_PASSWORD` if needed.
+
+## PDF Download Setup
+
+Direct PDF download uses `puppeteer-core`, so the server must have Chrome or Chromium installed.
+
+On Ubuntu VPS, install Chromium:
+
+```bash
+sudo apt update
+sudo apt install -y chromium-browser
+```
+
+If that package is unavailable, install Google Chrome:
+
+```bash
+wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+sudo apt install -y ./google-chrome-stable_current_amd64.deb
+```
+
+The app automatically checks common paths such as `/usr/bin/chromium`, `/usr/bin/chromium-browser`, `/usr/bin/google-chrome-stable`, and `/opt/google/chrome/chrome`.
+
+If Chrome is installed somewhere else, set:
+
+```env
+CHROME_EXECUTABLE_PATH="/usr/bin/chromium"
+```
+
+Without Chrome/Chromium, Job Card, Estimate, and Invoice PDF download routes will return a setup error instead of generating the PDF.
+
 ## Hostinger VPS Production Notes
 
 When moving from Supabase demo to Hostinger VPS:
@@ -116,14 +156,16 @@ When moving from Supabase demo to Hostinger VPS:
 5. Set `DATABASE_URL` to the VPS PostgreSQL URL.
 6. Set `DIRECT_URL` to the same direct PostgreSQL URL unless you add a separate pooler.
 7. Set `DATABASE_POOL_MAX` based on VPS capacity, for example `10`.
-8. Run `npm install`.
-9. Run `npx prisma generate`.
-10. Run `npx prisma migrate deploy`.
-11. Run `npm run build`.
-12. Run the app using `npm run start` or PM2.
-13. Configure Nginx reverse proxy if needed.
-14. Add domain and SSL.
-15. Configure WhatsApp webhook URL after the domain is live.
+8. Install Chrome/Chromium for PDF downloads, or set `CHROME_EXECUTABLE_PATH`.
+9. Run `npm install`.
+10. Run `npx prisma generate`.
+11. Run `npx prisma migrate deploy`.
+12. Run `npm run prisma:create-admin`.
+13. Run `npm run build`.
+14. Run the app using `npm run start` or PM2.
+15. Configure Nginx reverse proxy if needed.
+16. Add domain and SSL.
+17. Configure WhatsApp webhook URL after the domain is live.
 
 ## WhatsApp API Setup
 

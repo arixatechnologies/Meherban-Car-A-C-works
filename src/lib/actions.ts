@@ -23,6 +23,7 @@ import {
 import { clearSessionCookie, requireUser, setSessionCookie, verifyLogin } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { normalizeMobile } from "@/lib/utils";
+import { statusMessageTemplateFields } from "@/lib/status-message-templates";
 import {
   invoiceGeneratedBody,
   sendEstimateApprovalReminderMessage,
@@ -54,6 +55,7 @@ const expectedActionMessages = new Set([
   "Payment amount must be greater than zero.",
   "Payment amount cannot be more than the invoice balance due.",
   "Enter customer mobile number and message before sending WhatsApp.",
+  "Select a valid job card status.",
 ]);
 
 function prismaErrorCode(error: unknown) {
@@ -385,19 +387,47 @@ async function jobCardMessageContext(jobCardId: string) {
     include: {
       customer: true,
       vehicle: true,
+      estimates: { orderBy: { createdAt: "desc" }, take: 1 },
+      invoices: { orderBy: { createdAt: "desc" }, take: 1 },
     },
   });
+  const latestEstimate = jobCard.estimates[0];
+  const latestInvoice = jobCard.invoices[0];
+  const problemSummary =
+    jobCard.problemFound ||
+    jobCard.workSuggested ||
+    jobCard.customComplaint ||
+    jobCard.complaints.join(", ") ||
+    undefined;
 
   return {
     customerId: jobCard.customerId,
     jobCardId: jobCard.id,
+    estimateId: latestEstimate?.id,
+    invoiceId: latestInvoice?.id,
     customerName: jobCard.customer.name,
     mobileNumber: jobCard.customer.whatsapp || jobCard.customer.mobile,
     vehicleNumber: jobCard.vehicle.vehicleNumber,
     jobCardNumber: jobCard.jobCardNumber,
+    estimateNumber: latestEstimate?.estimateNumber,
+    invoiceNumber: latestInvoice?.invoiceNumber,
+    totalAmount: latestInvoice?.totalAmount ?? latestEstimate?.totalAmount ?? jobCard.estimatedTotalAmount,
+    paidAmount: latestInvoice?.paidAmount ?? jobCard.advanceAmount,
+    balanceAmount: latestInvoice?.balanceAmount ?? latestEstimate?.balanceAmount ?? jobCard.balanceDue,
+    amount: latestInvoice?.balanceAmount ?? latestEstimate?.balanceAmount ?? jobCard.balanceDue,
     trackingToken: jobCard.trackingToken,
-    problemSummary: jobCard.problemFound || jobCard.workSuggested || undefined,
+    problemSummary,
+    issueName: problemSummary,
   };
+}
+
+function parseStatusMessageTemplates(formData: FormData) {
+  return Object.fromEntries(
+    statusMessageTemplateFields.map((template) => [
+      template.status,
+      str(formData, `statusMessageTemplate-${template.status}`) || template.defaultTemplate,
+    ]),
+  ) as Prisma.InputJsonObject;
 }
 
 async function estimateMessageContext(estimateId: string) {
@@ -812,6 +842,51 @@ export async function updateJobCardStatus(jobCardId: string, formData: FormData)
 
   revalidatePath(`/job-cards/${jobCardId}`);
   redirect(`/job-cards/${jobCardId}`);
+  });
+}
+
+export async function sendJobCardStatusMessage(jobCardId: string, formData: FormData) {
+  return runAction("sendJobCardStatusMessage", "/", async () => {
+  const session = await requireUser([UserRole.ADMIN, UserRole.SERVICE_ADVISOR, UserRole.TECHNICIAN, UserRole.BILLING_STAFF]);
+  const newStatus = str(formData, "newStatus") as JobCardStatus;
+  const returnTo = str(formData, "returnTo");
+  const redirectTo = returnTo.startsWith("/") ? returnTo : "/";
+
+  if (!Object.values(JobCardStatus).includes(newStatus)) {
+    throw new Error("Select a valid job card status.");
+  }
+
+  const jobCard = await prisma.jobCard.findUniqueOrThrow({
+    where: { id: jobCardId },
+    select: { status: true },
+  });
+
+  await prisma.jobCard.update({
+    where: { id: jobCardId },
+    data: {
+      status: newStatus,
+      deliveredAt: newStatus === JobCardStatus.DELIVERED ? new Date() : undefined,
+    },
+  });
+
+  if (jobCard.status !== newStatus) {
+    await prisma.jobCardStatusLog.create({
+      data: {
+        jobCardId,
+        oldStatus: jobCard.status,
+        newStatus,
+        updatedById: session.id,
+        remarks: "WhatsApp status message sent from Home.",
+      },
+    });
+  }
+
+  await sendStatusUpdateMessage(await jobCardMessageContext(jobCardId), newStatus);
+
+  revalidatePath("/");
+  revalidatePath(`/job-cards/${jobCardId}`);
+  revalidatePath("/settings/whatsapp-logs");
+  redirect(redirectTo);
   });
 }
 
@@ -1310,9 +1385,9 @@ export async function markVehicleDelivered(jobCardId: string) {
 }
 
 export async function sendCustomWhatsApp(formData: FormData) {
-  return runAction("sendCustomWhatsApp", "/whatsapp-logs", async () => {
+  return runAction("sendCustomWhatsApp", "/settings/whatsapp-logs", async () => {
   await requireUser([UserRole.ADMIN, UserRole.SERVICE_ADVISOR, UserRole.BILLING_STAFF]);
-  const returnTo = str(formData, "returnTo") || "/whatsapp-logs";
+  const returnTo = str(formData, "returnTo") || "/settings/whatsapp-logs";
   const mobileNumber = str(formData, "mobileNumber");
   const messageBody = str(formData, "messageBody");
   if (!mobileNumber || !messageBody) {
@@ -1329,13 +1404,13 @@ export async function sendCustomWhatsApp(formData: FormData) {
     invoiceId: optional(str(formData, "invoiceId")),
   });
 
-  revalidatePath("/whatsapp-logs");
+  revalidatePath("/settings/whatsapp-logs");
   redirect(returnTo);
   });
 }
 
 export async function retryWhatsAppLog(logId: string) {
-  return runAction("retryWhatsAppLog", "/whatsapp-logs", async () => {
+  return runAction("retryWhatsAppLog", "/settings/whatsapp-logs", async () => {
   await requireUser([UserRole.ADMIN, UserRole.SERVICE_ADVISOR]);
   const log = await prisma.whatsAppLog.findUniqueOrThrow({ where: { id: logId } });
 
@@ -1349,8 +1424,8 @@ export async function retryWhatsAppLog(logId: string) {
     invoiceId: log.invoiceId ?? undefined,
   });
 
-  revalidatePath("/whatsapp-logs");
-  redirect("/whatsapp-logs");
+  revalidatePath("/settings/whatsapp-logs");
+  redirect("/settings/whatsapp-logs");
   });
 }
 
@@ -1377,6 +1452,7 @@ export async function saveSettings(formData: FormData) {
       estimateTerms: str(formData, "estimateTerms"),
       jobCardTerms: str(formData, "jobCardTerms"),
       currencySymbol: str(formData, "currencySymbol") || "\u20B9",
+      statusMessageTemplates: parseStatusMessageTemplates(formData),
       jobCardPrefix: str(formData, "jobCardPrefix") || "JC",
       estimatePrefix: str(formData, "estimatePrefix") || "EST",
       invoicePrefix: str(formData, "invoicePrefix") || "INV",
@@ -1404,6 +1480,7 @@ export async function saveSettings(formData: FormData) {
       jobCardTerms:
         str(formData, "jobCardTerms") || "Customer approval is required before additional work is started.",
       currencySymbol: str(formData, "currencySymbol") || "\u20B9",
+      statusMessageTemplates: parseStatusMessageTemplates(formData),
       jobCardPrefix: str(formData, "jobCardPrefix") || "JC",
       estimatePrefix: str(formData, "estimatePrefix") || "EST",
       invoicePrefix: str(formData, "invoicePrefix") || "INV",

@@ -8,6 +8,12 @@ import {
 } from "@/generated/prisma/client";
 import { prisma } from "@/lib/db";
 import { formatMoney } from "@/lib/format";
+import {
+  statusMessageTemplateFields,
+  statusTemplatesFromJson,
+  statusTemplateTitle,
+  type StatusTemplateKey,
+} from "@/lib/status-message-templates";
 
 type MessageContext = {
   customerId?: string;
@@ -25,6 +31,8 @@ type MessageContext = {
   balanceAmount?: number | string | { toString(): string };
   trackingToken?: string;
   problemSummary?: string;
+  issueName?: string;
+  amount?: number | string | { toString(): string };
 };
 
 type SendMessageInput = {
@@ -35,6 +43,7 @@ type SendMessageInput = {
   jobCardId?: string;
   estimateId?: string;
   invoiceId?: string;
+  statusMessageKey?: string;
 };
 
 export function formatIndianWhatsAppNumber(value: string) {
@@ -57,6 +66,74 @@ function appUrl() {
 
 function trackingLink(context: MessageContext) {
   return context.trackingToken ? `${appUrl()}/track/${context.trackingToken}` : appUrl();
+}
+
+function estimateLink(context: MessageContext) {
+  return context.trackingToken && context.estimateId
+    ? `${appUrl()}/track/${context.trackingToken}/estimate`
+    : trackingLink(context);
+}
+
+function invoiceLink(context: MessageContext) {
+  return context.trackingToken && context.invoiceId
+    ? `${appUrl()}/track/${context.trackingToken}/invoice`
+    : trackingLink(context);
+}
+
+function replacePlaceholder(template: string, key: string, value: string) {
+  const escapedKey = key
+    .split("_")
+    .map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+    .join("\\\\?_");
+  return template.replace(new RegExp(`{{\\s*${escapedKey}\\s*}}`, "g"), value);
+}
+
+function renderTemplate(template: string, context: MessageContext) {
+  const replacements: Record<string, string> = {
+    customer_name: context.customerName,
+    vehicle_number: context.vehicleNumber,
+    job_card_number: context.jobCardNumber ?? "-",
+    issue_name: context.issueName || context.problemSummary || "reported A/C issue",
+    estimate_number: context.estimateNumber ?? "-",
+    estimate_link: estimateLink(context),
+    amount: formatMoney(context.amount ?? context.balanceAmount ?? context.totalAmount).replace(/^\u20B9/, ""),
+    invoice_number: context.invoiceNumber ?? "-",
+    invoice_link: invoiceLink(context),
+  };
+
+  return Object.entries(replacements).reduce(
+    (message, [key, value]) => replacePlaceholder(message, key, value),
+    template,
+  );
+}
+
+function messageTypeForStatus(status: StatusTemplateKey) {
+  if (status === "VEHICLE_RECEIVED") return WhatsAppMessageType.JOB_CARD_CREATED;
+  if (status === "ISSUE_DIAGNOSED") return WhatsAppMessageType.INSPECTION_COMPLETED;
+  if (status === "ESTIMATE_SHARED") return WhatsAppMessageType.ESTIMATE_SHARED;
+  if (status === "WORK_IN_PROGRESS") return WhatsAppMessageType.WORK_STARTED;
+  if (status === "READY_FOR_DELIVERY") return WhatsAppMessageType.VEHICLE_READY;
+  if (status === "PAYMENT_PENDING") return WhatsAppMessageType.PAYMENT_REMINDER;
+  if (status === "INVOICE_GENERATED") return WhatsAppMessageType.INVOICE_GENERATED;
+  if (status === "DELIVERED") return WhatsAppMessageType.VEHICLE_DELIVERED;
+  return WhatsAppMessageType.CUSTOM;
+}
+
+export function statusMessageBody(
+  context: MessageContext,
+  status: string,
+  templatesJson?: unknown,
+) {
+  const templateField = statusMessageTemplateFields.find((template) => template.status === status);
+  if (!templateField) {
+    return `Hello ${context.customerName}, service status for ${context.vehicleNumber} is now ${status.replaceAll("_", " ")}.
+
+Track status:
+${trackingLink(context)}`;
+  }
+
+  const templates = statusTemplatesFromJson(templatesJson);
+  return renderTemplate(templates[templateField.status], context);
 }
 
 function baseRelations(input: SendMessageInput) {
@@ -86,6 +163,7 @@ export async function sendWhatsAppMessage(input: SendMessageInput) {
         messageType: input.messageType,
         messageBody: input.messageBody,
         sendMethod: WhatsAppSendMethod.FALLBACK,
+        statusMessageKey: input.statusMessageKey,
         status: WhatsAppStatus.PENDING,
       },
     });
@@ -127,6 +205,7 @@ export async function sendWhatsAppMessage(input: SendMessageInput) {
         messageBody: input.messageBody,
         sendMethod: WhatsAppSendMethod.API,
         status: WhatsAppStatus.FAILED,
+        statusMessageKey: input.statusMessageKey,
         apiResponse,
         failedAt: new Date(),
         errorMessage: JSON.stringify(responseJson),
@@ -142,6 +221,7 @@ export async function sendWhatsAppMessage(input: SendMessageInput) {
       messageBody: input.messageBody,
       sendMethod: WhatsAppSendMethod.API,
       status: WhatsAppStatus.SENT,
+      statusMessageKey: input.statusMessageKey,
       apiMessageId,
       apiResponse,
       sentAt: new Date(),
@@ -272,28 +352,19 @@ export async function sendJobCardCreatedMessage(context: MessageContext) {
 }
 
 export async function sendStatusUpdateMessage(context: MessageContext, status: string) {
-  if (status === "ISSUE_DIAGNOSED") {
+  const settings = await prisma.workshopSetting.findUnique({
+    where: { singletonKey: "default" },
+    select: { statusMessageTemplates: true },
+  });
+  const templateField = statusMessageTemplateFields.find((template) => template.status === status);
+
+  if (templateField) {
     return sendWhatsAppMessage({
       ...context,
-      messageType: WhatsAppMessageType.INSPECTION_COMPLETED,
-      messageBody: inspectionCompletedBody(context),
+      messageType: messageTypeForStatus(templateField.status),
+      messageBody: statusMessageBody(context, status, settings?.statusMessageTemplates),
+      statusMessageKey: templateField.status,
     });
-  }
-
-  if (status === "WORK_IN_PROGRESS") {
-    return sendWhatsAppMessage({
-      ...context,
-      messageType: WhatsAppMessageType.WORK_STARTED,
-      messageBody: workStartedBody(context),
-    });
-  }
-
-  if (status === "READY_FOR_DELIVERY") {
-    return sendVehicleReadyMessage(context);
-  }
-
-  if (status === "DELIVERED") {
-    return sendVehicleDeliveredMessage(context);
   }
 
   return sendWhatsAppMessage({
@@ -304,6 +375,10 @@ export async function sendStatusUpdateMessage(context: MessageContext, status: s
 Track status:
 ${trackingLink(context)}`,
   });
+}
+
+export function statusMessageSentHeading(status: string) {
+  return `*Status: ${statusTemplateTitle(status)}*`;
 }
 
 export async function sendEstimateSharedMessage(context: MessageContext) {

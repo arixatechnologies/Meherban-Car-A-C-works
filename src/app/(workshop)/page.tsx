@@ -1,16 +1,26 @@
 import { Plus } from "lucide-react";
 import Link from "next/link";
 import { PdfDownloadIcon, PreviewIcon, WhatsAppIcon } from "@/components/action-icons";
+import { StatusMessageControl } from "@/components/status-message-control";
 import { Badge, Button, Card, CardBody, CardHeader, DataTable, PageHeader, inputClass } from "@/components/ui";
 import { prisma } from "@/lib/db";
 import { formatDate } from "@/lib/format";
+import { statusMessageTemplateFields } from "@/lib/status-message-templates";
 import { cn } from "@/lib/utils";
-import { createWhatsAppLink, estimateSharedBody, invoiceGeneratedBody, jobCardCreatedBody } from "@/lib/whatsapp";
+import {
+  createWhatsAppLink,
+  estimateSharedBody,
+  invoiceGeneratedBody,
+  jobCardCreatedBody,
+  statusMessageBody,
+  statusMessageSentHeading,
+} from "@/lib/whatsapp";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 type DocumentType = "all" | "job-card" | "estimate" | "invoice";
+type Moneyish = number | string | { toString(): string };
 
 function filterHref(type: DocumentType, q: string) {
   const params = new URLSearchParams();
@@ -29,6 +39,84 @@ function iconActionClass(tone: "view" | "pdf" | "whatsapp") {
   );
 }
 
+function sentStatusMessages(
+  logs: {
+    messageBody: string;
+    status: string;
+    statusMessageKey: string | null;
+  }[],
+) {
+  return statusMessageTemplateFields
+    .filter((template) =>
+      logs.some(
+        (log) =>
+          log.status !== "FAILED" &&
+          (log.statusMessageKey === template.status ||
+            log.messageBody.includes(statusMessageSentHeading(template.status))),
+      ),
+    )
+    .map((template) => template.status);
+}
+
+function statusFallbackLinks({
+  jobCard,
+  templates,
+}: {
+  jobCard: {
+    id: string;
+    customerId: string;
+    jobCardNumber: string;
+    trackingToken: string;
+    complaints: string[];
+    customComplaint: string | null;
+    problemFound: string | null;
+    workSuggested: string | null;
+    estimatedTotalAmount: Moneyish;
+    advanceAmount: Moneyish;
+    balanceDue: Moneyish;
+    customer: { name: string; mobile: string; whatsapp: string | null };
+    vehicle: { vehicleNumber: string };
+    estimates: { id: string; estimateNumber: string; totalAmount: Moneyish; balanceAmount: Moneyish }[];
+    invoices: { id: string; invoiceNumber: string; totalAmount: Moneyish; paidAmount: Moneyish; balanceAmount: Moneyish }[];
+  };
+  templates: unknown;
+}) {
+  const latestEstimate = jobCard.estimates[0];
+  const latestInvoice = jobCard.invoices[0];
+  const problemSummary =
+    jobCard.problemFound ||
+    jobCard.workSuggested ||
+    jobCard.customComplaint ||
+    jobCard.complaints.join(", ") ||
+    undefined;
+  const context = {
+    customerId: jobCard.customerId,
+    jobCardId: jobCard.id,
+    estimateId: latestEstimate?.id,
+    invoiceId: latestInvoice?.id,
+    customerName: jobCard.customer.name,
+    mobileNumber: jobCard.customer.whatsapp || jobCard.customer.mobile,
+    vehicleNumber: jobCard.vehicle.vehicleNumber,
+    jobCardNumber: jobCard.jobCardNumber,
+    estimateNumber: latestEstimate?.estimateNumber,
+    invoiceNumber: latestInvoice?.invoiceNumber,
+    totalAmount: latestInvoice?.totalAmount ?? latestEstimate?.totalAmount ?? jobCard.estimatedTotalAmount,
+    paidAmount: latestInvoice?.paidAmount ?? jobCard.advanceAmount,
+    balanceAmount: latestInvoice?.balanceAmount ?? latestEstimate?.balanceAmount ?? jobCard.balanceDue,
+    amount: latestInvoice?.balanceAmount ?? latestEstimate?.balanceAmount ?? jobCard.balanceDue,
+    trackingToken: jobCard.trackingToken,
+    problemSummary,
+    issueName: problemSummary,
+  };
+
+  return Object.fromEntries(
+    statusMessageTemplateFields.map((template) => [
+      template.status,
+      createWhatsAppLink(context.mobileNumber, statusMessageBody(context, template.status, templates)),
+    ]),
+  );
+}
+
 export default async function HomePage({
   searchParams,
 }: {
@@ -37,6 +125,7 @@ export default async function HomePage({
   const params = await searchParams;
   const q = params.q?.trim() ?? "";
   const type = params.type ?? "all";
+  const returnTo = filterHref(type, q);
   const jobCardWhere = q
     ? {
         OR: [
@@ -70,10 +159,28 @@ export default async function HomePage({
       }
     : undefined;
 
-  const [jobCards, estimates, invoices] = await Promise.all([
+  const [jobCards, estimates, invoices, setting] = await Promise.all([
     prisma.jobCard.findMany({
       where: jobCardWhere,
-      include: { customer: true, vehicle: true },
+      include: {
+        customer: true,
+        vehicle: true,
+        estimates: {
+          select: { id: true, estimateNumber: true, totalAmount: true, balanceAmount: true },
+          orderBy: { createdAt: "desc" },
+          take: 1,
+        },
+        invoices: {
+          select: { id: true, invoiceNumber: true, totalAmount: true, paidAmount: true, balanceAmount: true },
+          orderBy: { createdAt: "desc" },
+          take: 1,
+        },
+        whatsappLogs: {
+          select: { messageBody: true, status: true, statusMessageKey: true },
+          orderBy: { createdAt: "desc" },
+          take: 100,
+        },
+      },
       orderBy: { dateTime: "desc" },
       take: 100,
     }),
@@ -89,7 +196,16 @@ export default async function HomePage({
       orderBy: { invoiceDate: "desc" },
       take: 100,
     }),
+    prisma.workshopSetting.findUnique({
+      where: { singletonKey: "default" },
+      select: { enableWhatsAppApiSending: true, statusMessageTemplates: true },
+    }),
   ]);
+  const apiSendingAvailable = Boolean(
+    setting?.enableWhatsAppApiSending &&
+      process.env.WHATSAPP_ACCESS_TOKEN &&
+      process.env.WHATSAPP_PHONE_NUMBER_ID,
+  );
 
   const documents = [
     ...jobCards.map((jobCard) => ({
@@ -102,6 +218,19 @@ export default async function HomePage({
       mobileNumber: jobCard.customer.whatsapp || jobCard.customer.mobile,
       vehicleNumber: jobCard.vehicle.vehicleNumber,
       status: jobCard.status,
+      statusNode: (
+        <StatusMessageControl
+          jobCardId={jobCard.id}
+          currentStatus={jobCard.status}
+          sentStatuses={sentStatusMessages(jobCard.whatsappLogs)}
+          returnTo={returnTo}
+          apiSendingAvailable={apiSendingAvailable}
+          fallbackLinks={statusFallbackLinks({
+            jobCard,
+            templates: setting?.statusMessageTemplates,
+          })}
+        />
+      ),
       message: jobCardCreatedBody({
         customerId: jobCard.customerId,
         jobCardId: jobCard.id,
@@ -122,6 +251,7 @@ export default async function HomePage({
       mobileNumber: estimate.customer.whatsapp || estimate.customer.mobile,
       vehicleNumber: estimate.vehicle.vehicleNumber,
       status: estimate.status,
+      statusNode: <Badge value={estimate.status} />,
       message: estimateSharedBody({
         customerId: estimate.customerId,
         jobCardId: estimate.jobCardId,
@@ -144,6 +274,7 @@ export default async function HomePage({
       mobileNumber: invoice.customer.whatsapp || invoice.customer.mobile,
       vehicleNumber: invoice.vehicle.vehicleNumber,
       status: invoice.paymentStatus,
+      statusNode: <Badge value={invoice.paymentStatus} />,
       message: invoiceGeneratedBody({
         customerId: invoice.customerId,
         jobCardId: invoice.jobCardId,
@@ -220,16 +351,19 @@ export default async function HomePage({
           </div>
 
           <DataTable
-            headers={["Document", "Customer", "Vehicle", "Date", "Status", "Actions"]}
+            headers={["Document", "Customer", "Phone", "Vehicle", "Date", "Status", "Actions"]}
             empty="No billing documents found."
             rows={documents.map((document) => [
               <Link key="number" href={document.href} className="font-black text-[#5a173b] hover:underline">
                 {document.number}
               </Link>,
               document.customerName,
+              <a key="phone" href={`tel:${document.mobileNumber}`} className="font-black text-[#5a173b] hover:underline">
+                {document.mobileNumber}
+              </a>,
               document.vehicleNumber,
               formatDate(document.sortDate),
-              <Badge key="status" value={document.status} />,
+              <div key="status">{document.statusNode}</div>,
               <div key="actions" className="flex items-center gap-2">
                 <Link href={document.href} className={iconActionClass("view")} title="View">
                   <PreviewIcon />

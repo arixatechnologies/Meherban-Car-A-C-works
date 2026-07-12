@@ -1,4 +1,4 @@
-import { Badge, Card, CardBody, CardHeader, DataTable, PageHeader, StatCard, inputClass } from "@/components/ui";
+import { Card, CardBody, CardHeader, DataTable, PageHeader, StatCard, inputClass } from "@/components/ui";
 import { prisma } from "@/lib/db";
 import { formatMoney } from "@/lib/format";
 
@@ -16,7 +16,7 @@ export default async function ReportsPage({
   to.setHours(23, 59, 59, 999);
 
   const paymentStatus = params.paymentStatus?.trim();
-  const [dailyJobs, monthlyJobs, completedJobs, pendingJobs, dailyCollection, monthlyRevenue, pendingPayments, techs, statusGroups, estimateGroups, customerBilling, vehicleHistory] =
+  const [dailyJobs, monthlyJobs, completedJobs, pendingJobs, dailyCollection, monthlyRevenue, pendingPayments, estimateGroups, customerBilling, vehicleHistory] =
     await Promise.all([
       prisma.jobCard.count({ where: { createdAt: { gte: new Date(new Date().setHours(0, 0, 0, 0)) } } }),
       prisma.jobCard.count({ where: { createdAt: { gte: from, lte: to } } }),
@@ -34,17 +34,6 @@ export default async function ReportsPage({
         _sum: { balanceAmount: true },
         where: { paymentStatus: { in: ["UNPAID", "PARTIALLY_PAID"] } },
       }),
-      prisma.staff.findMany({
-        where: { role: "TECHNICIAN" },
-        include: {
-          _count: {
-            select: {
-              assignedJobs: true,
-            },
-          },
-        },
-      }),
-      prisma.jobCard.groupBy({ by: ["status"], _count: { status: true } }),
       prisma.estimate.groupBy({ by: ["status"], _count: { status: true } }),
       prisma.customer.findMany({
         include: { invoices: true, payments: true },
@@ -62,15 +51,13 @@ export default async function ReportsPage({
 
   return (
     <div className="grid gap-6">
-      <PageHeader title="Reports" description="Date range and status filters apply to summary counts." />
+      <PageHeader title="Reports" description="Date range and payment filters apply to summary counts." />
       <Card>
         <CardHeader title="Filters" action={<a href={csvHref} className="text-sm font-bold text-[#5a173b] hover:underline">Export CSV</a>} />
         <CardBody>
-          <form className="grid gap-3 md:grid-cols-6">
+          <form className="grid gap-3 md:grid-cols-4">
             <input name="from" type="date" defaultValue={from.toISOString().slice(0, 10)} className={inputClass} />
             <input name="to" type="date" defaultValue={to.toISOString().slice(0, 10)} className={inputClass} />
-            <input name="status" placeholder="Status" defaultValue={params.status ?? ""} className={inputClass} />
-            <input name="technician" placeholder="Technician" defaultValue={params.technician ?? ""} className={inputClass} />
             <input name="paymentStatus" placeholder="Payment status" defaultValue={params.paymentStatus ?? ""} className={inputClass} />
             <button className="rounded-lg bg-[#5a173b] px-4 text-sm font-bold text-white hover:bg-[#42102e]">Apply</button>
           </form>
@@ -86,38 +73,6 @@ export default async function ReportsPage({
         <StatCard label="Pending Payments" value={formatMoney(pendingPayments._sum.balanceAmount)} />
         <StatCard label="Estimate Approvals" value={estimateGroups.find((item) => item.status === "APPROVED")?._count.status ?? 0} />
       </div>
-      <div className="grid gap-6 xl:grid-cols-2">
-        <Card>
-          <CardHeader title="Status-wise Vehicles" />
-          <CardBody>
-            <DataTable
-              headers={["Status", "Vehicles"]}
-              empty="No status data."
-              rows={statusGroups.map((group) => [<Badge key="status" value={group.status} />, group._count.status])}
-            />
-          </CardBody>
-        </Card>
-        <Card>
-          <CardHeader title="Technician Performance" />
-          <CardBody>
-            <DataTable
-              headers={["Technician", "Assigned Jobs", "Status"]}
-              empty="No technicians."
-              rows={techs.map((tech) => [tech.name, tech._count.assignedJobs, <Badge key="status" value={tech.status} />])}
-            />
-          </CardBody>
-        </Card>
-      </div>
-      <Card>
-        <CardHeader title="Estimate Approval Report" />
-        <CardBody>
-          <DataTable
-            headers={["Status", "Count"]}
-            empty="No estimate data."
-            rows={estimateGroups.map((group) => [<Badge key="status" value={group.status} />, group._count.status])}
-          />
-        </CardBody>
-      </Card>
       <div className="grid gap-6 xl:grid-cols-2">
         <Card>
           <CardHeader title="Customer-wise Billing" />

@@ -20,8 +20,10 @@ const chromeCandidates = [
     : null,
   "/usr/bin/google-chrome-stable",
   "/usr/bin/google-chrome",
+  "/usr/bin/chrome",
   "/usr/bin/chromium",
   "/usr/bin/chromium-browser",
+  "/opt/google/chrome/chrome",
   "/snap/bin/chromium",
 ].filter(Boolean) as string[];
 

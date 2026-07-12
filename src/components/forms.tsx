@@ -15,6 +15,7 @@ import {
   updateJobCardStatus,
 } from "@/lib/actions";
 import { formatMoney, toDateInput } from "@/lib/format";
+import { statusMessageTemplateFields, statusTemplatesFromJson } from "@/lib/status-message-templates";
 import { label } from "@/lib/utils";
 import { Field, inputClass, textareaClass } from "@/components/ui";
 import { SubmitButton } from "@/components/submit-button";
@@ -1138,6 +1139,7 @@ export function SettingsForm({
     estimateTerms: string;
     jobCardTerms: string;
     currencySymbol: string;
+    statusMessageTemplates: unknown;
     jobCardPrefix: string;
     estimatePrefix: string;
     invoicePrefix: string;
@@ -1149,6 +1151,8 @@ export function SettingsForm({
     autoSendDeliveryMessage: boolean;
   };
 }) {
+  const statusTemplates = statusTemplatesFromJson(setting.statusMessageTemplates);
+
   return (
     <form action={saveSettings} className="grid gap-6">
       <div className="grid gap-4 lg:grid-cols-2">
@@ -1218,6 +1222,25 @@ export function SettingsForm({
             {String(text)}
           </label>
         ))}
+      </div>
+      <div className="grid gap-4 rounded-lg border border-[#e7c9c1] bg-[#fffaf5] p-4">
+        <div>
+          <h3 className="font-display text-xl font-bold text-[#2d1030]">Status Message</h3>
+          <p className="mt-1 text-sm font-semibold text-[#6f475c]">
+            These WhatsApp messages are used from the Home status dropdown.
+          </p>
+        </div>
+        <div className="grid gap-4 lg:grid-cols-2">
+          {statusMessageTemplateFields.map((template) => (
+            <Field key={template.status} labelText={template.title}>
+              <textarea
+                name={`statusMessageTemplate-${template.status}`}
+                defaultValue={statusTemplates[template.status]}
+                className="min-h-56 rounded-lg border border-[#e2beb8] bg-[#fffaf7] px-3 py-2 font-mono text-xs font-semibold leading-5 text-[#2f1233] outline-none transition placeholder:text-[#a88996] focus:border-[#d97873] focus:ring-2 focus:ring-[#f8cdbf]"
+              />
+            </Field>
+          ))}
+        </div>
       </div>
       <SubmitButton>Save settings</SubmitButton>
     </form>

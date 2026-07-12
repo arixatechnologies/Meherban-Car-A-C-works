@@ -1,5 +1,5 @@
 import { SettingsForm } from "@/components/forms";
-import { Card, CardBody, CardHeader, PageHeader } from "@/components/ui";
+import { Button, Card, CardBody, CardHeader, PageHeader } from "@/components/ui";
 import { prisma } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
@@ -12,7 +12,7 @@ export default async function SettingsPage() {
 
   return (
     <div className="grid gap-6">
-      <PageHeader title="Settings" />
+      <PageHeader title="Settings" action={<Button href="/settings/whatsapp-logs" variant="secondary">WhatsApp Logs</Button>} />
       <Card>
         <CardHeader title="Workshop & WhatsApp Settings" />
         <CardBody>

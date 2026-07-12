@@ -434,10 +434,10 @@ async function main() {
 
   await prisma.workshopSetting.create({
     data: {
-      phoneNumber: "+91 98765 43210",
-      whatsappNumber: "+91 98765 43210",
-      email: "contact@meharbanacworks.com",
-      address: "Hyderabad, Telangana",
+      phoneNumber: "7287948037",
+      whatsappNumber: "7287948037",
+      email: "meharbancaracwork@gmail.com",
+      address: "Pantulugarimeda, Beside Visakha Eye Hospital, Autonagar, Old Gajuwaka, Visakhapatnam - 26",
     },
   });
 

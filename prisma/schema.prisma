@@ -411,6 +411,7 @@ model WhatsAppLog {
   apiMessageId  String?             @unique
   apiResponse   Json?
   webhookStatus String?
+  statusMessageKey String?
   status        WhatsAppStatus      @default(PENDING)
   sentAt        DateTime?
   deliveredAt   DateTime?
@@ -428,6 +429,7 @@ model WhatsAppLog {
   @@index([apiMessageId])
   @@index([status])
   @@index([messageType])
+  @@index([statusMessageKey])
 }
 
 model Staff {
@@ -453,14 +455,15 @@ model WorkshopSetting {
   singletonKey                 String   @unique @default("default")
   workshopName                 String   @default("Meharban Car A/C Works")
   tagline                      String   @default("Complete Car A/C Service & Repair Specialist")
-  phoneNumber                  String   @default("")
-  whatsappNumber               String   @default("")
-  email                        String   @default("")
-  address                      String   @default("")
+  phoneNumber                  String   @default("7287948037")
+  whatsappNumber               String   @default("7287948037")
+  email                        String   @default("meharbancaracwork@gmail.com")
+  address                      String   @default("Pantulugarimeda, Beside Visakha Eye Hospital, Autonagar, Old Gajuwaka, Visakhapatnam - 26")
   logoUrl                      String?
   invoiceFooterNote            String   @default("Thank you for choosing Meharban Car A/C Works. Drive cool, drive comfortable.")
   estimateTerms                String   @default("This is an estimate only. Final invoice may vary if additional parts or services are required after customer approval.")
   jobCardTerms                 String   @default("Customer approval is required before additional work is started.")
+  statusMessageTemplates       Json     @default("{}")
   currencySymbol               String   @default("₹")
   jobCardPrefix                String   @default("JC")
   estimatePrefix               String   @default("EST")
