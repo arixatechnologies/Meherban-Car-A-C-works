@@ -65,6 +65,7 @@ enum PaymentMode {
   CASH
   UPI
   CARD
+  CHEQUE
   BANK_TRANSFER
   CREDIT_PAY_LATER
 }

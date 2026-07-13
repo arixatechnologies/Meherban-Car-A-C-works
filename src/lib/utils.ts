@@ -7,6 +7,7 @@ export function cn(...inputs: ClassValue[]) {
 
 export function label(value: string | null | undefined) {
   if (!value) return "-";
+  if (value === "CARD") return "Cards";
   return value
     .toLowerCase()
     .split("_")

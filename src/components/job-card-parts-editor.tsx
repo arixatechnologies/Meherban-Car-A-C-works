@@ -303,7 +303,7 @@ export function JobCardPartsEditor({
             <span>Payment Mode</span>
             <select name="jobCardPaymentMode" defaultValue={paymentMode ?? ""} className={inputClass}>
               <option value="">Select payment mode</option>
-              {paymentModes.filter((mode) => mode !== "CREDIT_PAY_LATER").map((mode) => (
+              {paymentModes.map((mode) => (
                 <option key={mode} value={mode}>
                   {label(mode)}
                 </option>

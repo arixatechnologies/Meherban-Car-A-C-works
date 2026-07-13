@@ -78,7 +78,7 @@ export const estimateStatuses = [
   "CONVERTED_TO_INVOICE",
 ] as const;
 export const invoicePaymentStatuses = ["UNPAID", "PARTIALLY_PAID", "PAID"] as const;
-export const paymentModes = ["CASH", "UPI", "CARD", "BANK_TRANSFER", "CREDIT_PAY_LATER"] as const;
+export const paymentModes = ["CASH", "UPI", "CARD", "CHEQUE"] as const;
 export const itemCategories = ["SERVICE", "PARTS", "LABOUR", "OTHER"] as const;
 export const userRoles = ["ADMIN", "SERVICE_ADVISOR", "TECHNICIAN", "BILLING_STAFF"] as const;
 export const staffStatuses = ["ACTIVE", "INACTIVE"] as const;

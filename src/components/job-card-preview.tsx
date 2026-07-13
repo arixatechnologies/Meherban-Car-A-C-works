@@ -410,7 +410,7 @@ export async function JobCardPreview({ id }: { id: string }) {
         </div>
         <dl className="grid gap-3 px-4 py-3 text-[12px] font-semibold sm:grid-cols-2 lg:grid-cols-4 print:grid-cols-2">
           <InfoRow labelText="Total Amount" value={totalAmount ? formatMoney(totalAmount) : "-"} />
-          <InfoRow labelText="UPI / Cash" value={paymentModes} />
+          <InfoRow labelText="Payment Mode" value={paymentModes} />
           <InfoRow labelText="Advance" value={advanceAmount ? formatMoney(advanceAmount) : "-"} />
           <InfoRow labelText="Balance Due" value={balanceAmount ? formatMoney(balanceAmount) : "-"} />
         </dl>
