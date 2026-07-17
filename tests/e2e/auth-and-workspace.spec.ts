@@ -1,7 +1,15 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 const adminEmail = process.env.E2E_ADMIN_EMAIL || process.env.ADMIN_EMAIL || "meharbancaracwork@gmail.com";
 const adminPassword = process.env.E2E_ADMIN_PASSWORD || process.env.ADMIN_PASSWORD || "Meharban@786";
+
+async function loginAsAdmin(page: Page) {
+  await page.goto("/login");
+  await page.locator('input[name="email"]').fill(adminEmail);
+  await page.locator('input[name="password"]').fill(adminPassword);
+  await page.getByRole("button", { name: /login/i }).click();
+  await expect(page).toHaveURL(/\/$/, { timeout: 30_000 });
+}
 
 test("login page masks password on desktop and mobile", async ({ page }) => {
   await page.goto("/login");
@@ -28,15 +36,35 @@ test("protected workspace redirects anonymous users to login", async ({ page }) 
 });
 
 test("admin can login and see billing workspace", async ({ page }) => {
-  await page.goto("/login");
-  await page.locator('input[name="email"]').fill(adminEmail);
-  await page.locator('input[name="password"]').fill(adminPassword);
-  await page.getByRole("button", { name: /login/i }).click();
-
-  await expect(page).toHaveURL(/\/$/);
+  await loginAsAdmin(page);
   await expect(page.getByRole("heading", { name: "Billing Workspace" })).toBeVisible();
   await expect(page.getByRole("link", { name: /New Job Card/i })).toBeVisible();
   await expect(page.locator('a[href="/?type=job-card"]')).toBeVisible();
   await expect(page.locator('a[href="/?type=estimate"]')).toBeVisible();
   await expect(page.locator('a[href="/?type=invoice"]')).toBeVisible();
+});
+
+test("new job card validates inline and restores draft", async ({ page }) => {
+  await loginAsAdmin(page);
+  await page.goto("/job-cards/new");
+  await page.evaluate(() => window.localStorage.removeItem("meharban-job-card-new-draft-v1"));
+  await page.reload();
+  await page.waitForFunction(() => document.querySelector("#job-card-form")?.getAttribute("data-job-card-guard-ready") === "true");
+
+  await page.locator("#job-card-form").evaluate((form) => (form as HTMLFormElement).requestSubmit());
+
+  await expect(page).toHaveURL(/\/job-cards\/new/);
+  await expect(page).not.toHaveURL(/\/action-error/);
+  await expect(page.getByText("Enter customer name.")).toBeVisible();
+  await expect(page.getByText("Enter mobile number.")).toBeVisible();
+  await expect(page.locator('input[name="customerName"]')).toHaveClass(/job-card-invalid-field/);
+
+  await page.locator('input[name="customerName"]').fill("Draft Customer");
+  await page.locator('input[name="customerMobile"]').fill("98765432109");
+  await expect(page.locator('input[name="customerMobile"]')).toHaveValue("9876543210");
+  await page.reload();
+
+  await expect(page.locator('input[name="customerName"]')).toHaveValue("Draft Customer");
+  await expect(page.locator('input[name="customerMobile"]')).toHaveValue("9876543210");
+  await expect(page.getByText("Draft restored.")).toBeVisible();
 });

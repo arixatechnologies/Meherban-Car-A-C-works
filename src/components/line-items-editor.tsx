@@ -12,6 +12,7 @@ export type EditableLineItem = {
   category: string;
   quantity: Decimalish;
   unitPrice: Decimalish;
+  amount?: Decimalish;
 };
 
 type Row = {
@@ -22,6 +23,7 @@ type Row = {
   category: "PARTS" | "LABOUR";
   quantity: string;
   unitPrice: string;
+  amount: string;
 };
 
 function valueOf(value: Decimalish) {
@@ -32,6 +34,16 @@ function valueOf(value: Decimalish) {
 function numberFrom(value: string) {
   const match = value.replaceAll(",", "").match(/-?\d+(\.\d+)?/);
   return match ? Number(match[0]) : 0;
+}
+
+function strictNumber(value: string) {
+  if (!value.trim()) return 0;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function moneyInput(value: number) {
+  return value ? value.toFixed(2) : "";
 }
 
 function money(value: number) {
@@ -48,6 +60,9 @@ function normalizeCategory(category: string): Row["category"] {
 function normalizeItem(item: EditableLineItem, index: number): Row {
   const category = normalizeCategory(item.category);
   const partService = item.partService || item.description;
+  const quantity = valueOf(item.quantity) || "1";
+  const unitPrice = valueOf(item.unitPrice);
+  const amount = valueOf(item.amount) || moneyInput(strictNumber(quantity) * strictNumber(unitPrice));
 
   return {
     id: `${category}-${index}-${partService}`,
@@ -55,8 +70,9 @@ function normalizeItem(item: EditableLineItem, index: number): Row {
     description: item.partService ? item.description : "",
     remarks: item.remarks ?? "",
     category,
-    quantity: valueOf(item.quantity) || "1",
-    unitPrice: valueOf(item.unitPrice),
+    quantity,
+    unitPrice,
+    amount,
   };
 }
 
@@ -67,8 +83,9 @@ function blankRow(category: Row["category"]): Row {
     description: "",
     remarks: "",
     category,
-    quantity: "1",
+    quantity: "",
     unitPrice: "",
+    amount: "",
   };
 }
 
@@ -87,7 +104,7 @@ export function LineItemsEditor({
   const totals = useMemo(() => {
     return rows.reduce(
       (result, row) => {
-        const amount = numberFrom(row.quantity) * numberFrom(row.unitPrice);
+        const amount = numberFrom(row.amount);
         if (row.category === "PARTS") result.parts += amount;
         if (row.category === "LABOUR") result.labour += amount;
         return result;
@@ -101,7 +118,18 @@ export function LineItemsEditor({
   }
 
   function updateRow(id: string, field: keyof Row, value: string) {
-    setRows((current) => current.map((row) => (row.id === id ? { ...row, [field]: value } : row)));
+    setRows((current) =>
+      current.map((row) => {
+        if (row.id !== id) return row;
+
+        const nextRow = { ...row, [field]: value };
+        if (field === "quantity" || field === "unitPrice") {
+          nextRow.amount = moneyInput(strictNumber(nextRow.quantity) * strictNumber(nextRow.unitPrice));
+        }
+
+        return nextRow;
+      }),
+    );
   }
 
   function removeRow(id: string) {
@@ -110,7 +138,7 @@ export function LineItemsEditor({
 
   function section(category: Row["category"], title: string, empty: string) {
     const sectionRows = rows.filter((row) => row.category === category);
-    const amountColSpan = showRemarks ? 5 : 4;
+    const amountColSpan = 5;
 
     return (
       <section className="overflow-hidden rounded-lg border-[1.5px] border-[#d9a5b3] bg-white">
@@ -134,8 +162,6 @@ export function LineItemsEditor({
             <tbody>
               {sectionRows.length ? (
                 sectionRows.map((row, index) => {
-                  const amount = numberFrom(row.quantity) * numberFrom(row.unitPrice);
-
                   return (
                     <tr key={row.id}>
                       <td className="border border-[#ead0d7] px-2 py-2 text-center font-semibold">{index + 1}</td>
@@ -145,7 +171,6 @@ export function LineItemsEditor({
                           name="itemPartService"
                           value={row.partService}
                           onChange={(event) => updateRow(row.id, "partService", event.target.value)}
-                          placeholder={category === "PARTS" ? "Cabin Air Filter" : "General Check & Labour"}
                           className={inputClass}
                         />
                       </td>
@@ -154,7 +179,6 @@ export function LineItemsEditor({
                           name="itemDescription"
                           value={row.description}
                           onChange={(event) => updateRow(row.id, "description", event.target.value)}
-                          placeholder={category === "PARTS" ? "Replace Cabin Air Filter" : "Labour charge"}
                           className={inputClass}
                         />
                       </td>
@@ -163,33 +187,37 @@ export function LineItemsEditor({
                           name="itemQuantity"
                           value={row.quantity}
                           onChange={(event) => updateRow(row.id, "quantity", event.target.value)}
-                          placeholder="1"
                           className={inputClass}
                         />
                       </td>
                       <td className="border border-[#ead0d7] px-2 py-2">
                         <input
                           name="itemUnitPrice"
-                          type="number"
-                          step="0.01"
+                          type="text"
+                          inputMode="decimal"
                           value={row.unitPrice}
                           onChange={(event) => updateRow(row.id, "unitPrice", event.target.value)}
-                          placeholder="0.00"
                           className={inputClass}
                         />
                       </td>
-                      <td className="border border-[#ead0d7] px-2 py-2 text-right font-bold text-[#650820]">
-                        {money(amount)}
+                      <td className="border border-[#ead0d7] px-2 py-2">
+                        <input
+                          name="itemAmount"
+                          type="text"
+                          inputMode="decimal"
+                          value={row.amount}
+                          onChange={(event) => updateRow(row.id, "amount", event.target.value)}
+                          className={inputClass}
+                        />
                       </td>
                       {showRemarks ? (
                         <td className="border border-[#ead0d7] px-2 py-2">
                           <input
-                            name="itemRemarks"
-                            value={row.remarks}
-                            onChange={(event) => updateRow(row.id, "remarks", event.target.value)}
-                            placeholder={category === "PARTS" ? "Replaced" : "Labour"}
-                            className={inputClass}
-                          />
+                          name="itemRemarks"
+                          value={row.remarks}
+                          onChange={(event) => updateRow(row.id, "remarks", event.target.value)}
+                          className={inputClass}
+                        />
                         </td>
                       ) : null}
                       <td className="border border-[#ead0d7] px-2 py-2 text-center">

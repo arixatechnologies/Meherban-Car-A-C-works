@@ -48,6 +48,19 @@ body {
   display: none;
 }
 
+.job-card-invalid-field {
+  border-color: #dc2626 !important;
+  background: #fff1f2 !important;
+  box-shadow: 0 0 0 4px rgb(220 38 38 / 0.1) !important;
+}
+
+.job-card-field-error {
+  margin-top: -2px;
+  font-size: 12px;
+  font-weight: 800;
+  color: #b91c1c;
+}
+
 @media print {
   @page {
     size: A4;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { paymentModes } from "@/lib/constants";
 import { label } from "@/lib/utils";
 
@@ -24,6 +24,10 @@ type ObservationRow = {
   amount: string;
 };
 
+type DraftPayload = {
+  fields?: Record<string, string | string[]>;
+};
+
 const inputClass =
   "h-10 w-full rounded-md border-[1.5px] border-[#e3c0c9] bg-white px-2 text-sm text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-[#8b0f2f] focus:ring-4 focus:ring-[#8b0f2f]/10";
 
@@ -35,37 +39,6 @@ const blankRow = (): ObservationRow => ({
   unitPrice: "",
   amount: "",
 });
-
-const placeholderRows = [
-  {
-    partService: "Cabin Air Filter",
-    description: "High Quality",
-    quantity: "1",
-    unitPrice: "350",
-    amount: "350",
-  },
-  {
-    partService: "A/C Gas (R134a)",
-    description: "Refrigerant Gas",
-    quantity: "450 g",
-    unitPrice: "900",
-    amount: "900",
-  },
-  {
-    partService: "Cooling Coil Cleaning",
-    description: "A/C Evaporator Cleaning",
-    quantity: "1",
-    unitPrice: "600",
-    amount: "600",
-  },
-  {
-    partService: "General Check & Labour",
-    description: "Labour Charge",
-    quantity: "1",
-    unitPrice: "500",
-    amount: "500",
-  },
-];
 
 function toInputValue(value: Decimalish) {
   if (value == null) return "";
@@ -96,21 +69,71 @@ function makeInitialRows(observations: InitialObservation[] | undefined) {
   return [];
 }
 
+function draftArray(fields: DraftPayload["fields"], name: string) {
+  const value = fields?.[name];
+  if (Array.isArray(value)) return value;
+  return value ? [value] : [];
+}
+
+function rowsFromDraft(draftKey: string) {
+  try {
+    const draft = JSON.parse(window.localStorage.getItem(draftKey) || "{}") as DraftPayload;
+    const partServices = draftArray(draft.fields, "observationPartService");
+    const descriptions = draftArray(draft.fields, "observationDescription");
+    const quantities = draftArray(draft.fields, "observationQuantity");
+    const unitPrices = draftArray(draft.fields, "observationUnitPrice");
+    const amounts = draftArray(draft.fields, "observationAmount");
+    const rowCount = Math.max(partServices.length, descriptions.length, quantities.length, unitPrices.length, amounts.length);
+
+    return Array.from({ length: rowCount }, (_, index) => ({
+      key: crypto.randomUUID(),
+      partService: partServices[index] ?? "",
+      description: descriptions[index] ?? "",
+      quantity: quantities[index] ?? "",
+      unitPrice: unitPrices[index] ?? "",
+      amount: amounts[index] ?? "",
+    })).filter((row) => row.partService || row.description || row.quantity || row.unitPrice || row.amount);
+  } catch {
+    return [];
+  }
+}
+
 export function JobCardPartsEditor({
   observations,
   totalAmount,
   advanceAmount,
   balanceDue,
   paymentMode,
+  draftKey,
 }: {
   observations?: InitialObservation[];
   totalAmount?: Decimalish;
   advanceAmount?: Decimalish;
   balanceDue?: Decimalish;
   paymentMode?: string | null;
+  draftKey?: string;
 }) {
   const [rows, setRows] = useState<ObservationRow[]>(() => makeInitialRows(observations));
   const [advance, setAdvance] = useState(() => toInputValue(advanceAmount));
+
+  useEffect(() => {
+    if (!draftKey || observations?.length) return;
+
+    const draftRows = rowsFromDraft(draftKey);
+    if (draftRows.length) {
+      window.setTimeout(() => setRows(draftRows), 0);
+    }
+
+    try {
+      const draft = JSON.parse(window.localStorage.getItem(draftKey) || "{}") as DraftPayload;
+      const draftAdvance = draft.fields?.advanceAmount;
+      if (typeof draftAdvance === "string") {
+        window.setTimeout(() => setAdvance(draftAdvance), 0);
+      }
+    } catch {
+      // Draft restore is best-effort only.
+    }
+  }, [draftKey, observations?.length]);
 
   const rowsTotal = useMemo(
     () => rows.reduce((sum, row) => sum + toNumber(row.amount), 0),
@@ -177,23 +200,13 @@ export function JobCardPartsEditor({
                     </td>
                   </tr>
                 ) : null}
-                {rows.map((row, index) => {
-                  const placeholders = placeholderRows[index] ?? {
-                    partService: "Enter part / service",
-                    description: "Enter description",
-                    quantity: "Qty",
-                    unitPrice: "Unit price",
-                    amount: "Amount",
-                  };
-
-                  return (
+                {rows.map((row, index) => (
                     <tr key={row.key}>
                       <td className="border border-[#ead0d7] px-2 py-2 text-center font-semibold">{index + 1}</td>
                       <td className="border border-[#ead0d7] px-2 py-2">
                         <input
                           name="observationPartService"
                           value={row.partService}
-                          placeholder={placeholders.partService}
                           onChange={(event) => updateRow(index, "partService", event.target.value)}
                           className={inputClass}
                         />
@@ -202,7 +215,6 @@ export function JobCardPartsEditor({
                         <input
                           name="observationDescription"
                           value={row.description}
-                          placeholder={placeholders.description}
                           onChange={(event) => updateRow(index, "description", event.target.value)}
                           className={inputClass}
                         />
@@ -213,7 +225,6 @@ export function JobCardPartsEditor({
                           type="text"
                           inputMode="decimal"
                           value={row.quantity}
-                          placeholder={placeholders.quantity}
                           onChange={(event) => updateRow(index, "quantity", event.target.value)}
                           className={inputClass}
                         />
@@ -221,10 +232,9 @@ export function JobCardPartsEditor({
                       <td className="border border-[#ead0d7] px-2 py-2">
                         <input
                           name="observationUnitPrice"
-                          type="number"
-                          step="0.01"
+                          type="text"
+                          inputMode="decimal"
                           value={row.unitPrice}
-                          placeholder={placeholders.unitPrice}
                           onChange={(event) => updateRow(index, "unitPrice", event.target.value)}
                           className={inputClass}
                         />
@@ -235,7 +245,6 @@ export function JobCardPartsEditor({
                           type="number"
                           step="0.01"
                           value={row.amount}
-                          placeholder={placeholders.amount}
                           onChange={(event) => updateRow(index, "amount", event.target.value)}
                           className={inputClass}
                         />
@@ -252,8 +261,7 @@ export function JobCardPartsEditor({
                         </button>
                       </td>
                     </tr>
-                  );
-                })}
+                ))}
               </tbody>
               <tfoot>
                 <tr className="bg-[#fff3f6] font-black text-[#650820]">
@@ -295,7 +303,6 @@ export function JobCardPartsEditor({
               step="0.01"
               readOnly
               value={totalValue}
-              placeholder="2350"
               className={inputClass}
             />
           </label>
@@ -314,17 +321,16 @@ export function JobCardPartsEditor({
             <span>Advance {"\u20B9"}</span>
             <input
               name="advanceAmount"
-              type="number"
-              step="0.01"
+              type="text"
+              inputMode="decimal"
               value={advance}
-              placeholder="1000"
               onChange={(event) => setAdvance(event.target.value)}
               className={inputClass}
             />
           </label>
           <label className="grid gap-2 text-sm font-bold text-slate-950">
             <span>Balance Due {"\u20B9"}</span>
-            <input name="balanceDue" type="number" step="0.01" readOnly value={balanceValue} placeholder="1350" className={inputClass} />
+            <input name="balanceDue" type="number" step="0.01" readOnly value={balanceValue} className={inputClass} />
           </label>
         </div>
       </section>

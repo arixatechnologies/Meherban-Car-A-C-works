@@ -133,7 +133,7 @@ function stageForStatus(status: JobCardStatus) {
     READY_FOR_DELIVERY: 3,
     INVOICE_GENERATED: 3,
     PAYMENT_PENDING: 3,
-    DELIVERED: 3,
+    DELIVERED: 4,
     CANCELLED: 0,
   };
 
@@ -210,6 +210,7 @@ export async function JobCardPreview({ id }: { id: string }) {
     "Inspection Started",
     "Work In Progress",
     "Ready for Delivery",
+    "Delivered",
   ];
 
   return (
@@ -425,7 +426,7 @@ export async function JobCardPreview({ id }: { id: string }) {
         </Box>
 
         <Box title="Work Status" icon={<ClipboardList className="h-5 w-5" />}>
-          <div className="grid grid-cols-4 items-start gap-2 text-center text-[11px] font-bold">
+          <div className="grid grid-cols-5 items-start gap-2 text-center text-[11px] font-bold">
             {statusSteps.map((step, index) => {
               const active = index <= currentStage;
               return (

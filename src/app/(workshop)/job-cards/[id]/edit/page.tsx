@@ -15,10 +15,34 @@ export default async function EditJobCardPage({
   const [jobCard, customers, vehicles, setting] = await Promise.all([
     prisma.jobCard.findUnique({
       where: { id },
-      include: { serviceObservations: { orderBy: { sortOrder: "asc" } } },
+      include: {
+        customer: true,
+        vehicle: true,
+        inspectionItems: { orderBy: { createdAt: "asc" } },
+        serviceObservations: { orderBy: { sortOrder: "asc" } },
+      },
     }),
-    prisma.customer.findMany({ orderBy: { name: "asc" } }),
-    prisma.vehicle.findMany({ orderBy: { vehicleNumber: "asc" } }),
+    prisma.customer.findMany({
+      where: {
+        OR: [
+          { jobCards: { some: {} } },
+          { estimates: { some: {} } },
+          { invoices: { some: {} } },
+          { payments: { some: {} } },
+        ],
+      },
+      orderBy: { name: "asc" },
+    }),
+    prisma.vehicle.findMany({
+      where: {
+        OR: [
+          { jobCards: { some: {} } },
+          { estimates: { some: {} } },
+          { invoices: { some: {} } },
+        ],
+      },
+      orderBy: { vehicleNumber: "asc" },
+    }),
     prisma.workshopSetting.findUnique({ where: { singletonKey: "default" } }),
   ]);
 

@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useFormStatus } from "react-dom";
+import { SpanLoader } from "@/components/span-loader";
 import { sendJobCardStatusMessage } from "@/lib/actions";
 import { statusMessageTemplateFields } from "@/lib/status-message-templates";
 import { cn, label } from "@/lib/utils";
@@ -13,14 +14,15 @@ function SendStatusButton({ sent }: { sent: boolean }) {
     <button
       type="submit"
       disabled={pending}
+      aria-label={pending ? "Sending" : undefined}
       className={cn(
-        "h-9 rounded-lg px-3 text-xs font-black transition focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70",
+        "inline-flex h-9 min-w-14 items-center justify-center rounded-lg px-3 text-xs font-black transition focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70",
         sent
           ? "bg-[#2f8f4e] text-white hover:bg-[#24763f] focus:ring-[#2f8f4e]"
           : "bg-[#5a173b] text-white hover:bg-[#42102e] focus:ring-[#d97873]",
       )}
     >
-      {pending ? "Sending" : sent ? "Sent" : "Send"}
+      {pending ? <SpanLoader size="button" /> : sent ? "Sent" : "Send"}
     </button>
   );
 }

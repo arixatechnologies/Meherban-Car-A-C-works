@@ -1,6 +1,7 @@
 import { Calculator, Edit, Trash2 } from "lucide-react";
 import { notFound } from "next/navigation";
 import { PdfDownloadIcon, WhatsAppIcon } from "@/components/action-icons";
+import { ClearJobCardDraft } from "@/components/clear-job-card-draft";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { DocumentChain } from "@/components/document-chain";
 import { JobCardPreview } from "@/components/job-card-preview";
@@ -56,6 +57,7 @@ export default async function JobCardDetailPage({
 
   return (
     <div className="grid gap-4">
+      <ClearJobCardDraft storageKey="meharban-job-card-new-draft-v1" />
       <div className="no-print mx-auto flex w-full max-w-[1120px] flex-wrap items-center justify-end gap-2 rounded-xl border border-[#e7c9c1] bg-[#fffaf5] p-3 shadow-[0_10px_28px_rgba(90,23,59,0.08)]">
         <Button href={latestEstimate ? `/estimates/${latestEstimate.id}` : `/estimates/new?jobCardId=${jobCard.id}`}>
           <Calculator className="h-4 w-4" />

@@ -1,0 +1,158 @@
+.screen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  overflow: hidden;
+  background: transparent;
+}
+
+.page {
+  min-height: 100vh;
+}
+
+.panel {
+  min-height: calc(100vh - 9rem);
+}
+
+.inline {
+  display: inline-flex;
+  width: auto;
+  min-height: 0;
+}
+
+.button {
+  display: inline-flex;
+  width: auto;
+  min-height: 0;
+}
+
+.logoOrbitLoader {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 135px;
+  height: 135px;
+}
+
+.button .logoOrbitLoader {
+  width: 30px;
+  height: 30px;
+}
+
+.inline .logoOrbitLoader {
+  width: 64px;
+  height: 64px;
+}
+
+.ringTrack {
+  position: absolute;
+  inset: 0;
+  border: 4px solid rgb(90 23 59 / 0.14);
+  border-radius: 50%;
+}
+
+.button .ringTrack {
+  border-width: 2px;
+}
+
+.inline .ringTrack {
+  border-width: 3px;
+}
+
+.ringArc {
+  position: absolute;
+  inset: 0;
+  border: 4px solid transparent;
+  border-top-color: #5a173b;
+  border-right-color: #f8cdbf;
+  border-bottom-color: #d97873;
+  border-radius: 50%;
+  filter:
+    drop-shadow(0 0 10px rgb(90 23 59 / 0.45))
+    drop-shadow(0 0 10px rgb(217 120 115 / 0.3));
+  animation: spin 1.2s cubic-bezier(0.6, 0, 0.4, 1) infinite;
+}
+
+.button .ringArc {
+  border-width: 2px;
+  filter:
+    drop-shadow(0 0 5px rgb(90 23 59 / 0.4))
+    drop-shadow(0 0 5px rgb(217 120 115 / 0.26));
+}
+
+.inline .ringArc {
+  border-width: 3px;
+}
+
+.innerGlow {
+  position: absolute;
+  inset: 15px;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 0.9);
+  box-shadow:
+    inset 0 0 24px rgb(90 23 59 / 0.12),
+    0 8px 22px rgb(90 23 59 / 0.1);
+}
+
+.button .innerGlow {
+  inset: 4px;
+  box-shadow:
+    inset 0 0 10px rgb(90 23 59 / 0.12),
+    0 3px 8px rgb(90 23 59 / 0.12);
+}
+
+.inline .innerGlow {
+  inset: 8px;
+}
+
+.loaderLogo {
+  position: relative;
+  z-index: 3;
+  width: 72px;
+  height: auto;
+  display: block;
+  filter: drop-shadow(0 8px 14px rgb(90 23 59 / 0.28));
+  animation: logoPulse 1.2s ease-in-out infinite;
+}
+
+.button .loaderLogo {
+  width: 18px;
+  filter: drop-shadow(0 3px 5px rgb(90 23 59 / 0.25));
+}
+
+.inline .loaderLogo {
+  width: 34px;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  white-space: nowrap;
+  border: 0;
+  clip: rect(0, 0, 0, 0);
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes logoPulse {
+  0%,
+  100% {
+    transform: scale(0.94);
+    opacity: 0.86;
+  }
+
+  50% {
+    transform: scale(1.07);
+    opacity: 1;
+  }
+}

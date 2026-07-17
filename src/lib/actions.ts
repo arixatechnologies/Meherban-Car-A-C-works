@@ -46,6 +46,8 @@ const loginLockMs = 15 * 60 * 1000;
 const loginAttempts = new Map<string, { count: number; lockedUntil?: number }>();
 const expectedActionMessages = new Set([
   "Select an existing customer or enter new customer name and mobile number.",
+  "Enter a valid 10 digit customer mobile number.",
+  "Enter a valid 10 digit alternate mobile number.",
   "Select an existing vehicle or enter new vehicle number, brand, model, and fuel type.",
   "Select existing customer and vehicle, or enter new customer and vehicle details.",
   "Delete linked estimates and invoices before deleting this job card.",
@@ -208,6 +210,12 @@ function looseDecimal(value: string) {
   return decimal(match?.[0] ?? "");
 }
 
+function strictDecimal(value: string) {
+  const normalized = value.replaceAll(",", "").trim();
+  if (!/^-?\d+(\.\d+)?$/.test(normalized)) return null;
+  return new Prisma.Decimal(normalized);
+}
+
 function nonNegative(value: Prisma.Decimal) {
   return value.lessThan(0) ? new Prisma.Decimal(0) : value;
 }
@@ -286,10 +294,15 @@ async function nextJobCardNumber() {
   const { jobCardPrefix } = await getSettingPrefixes();
   const year = new Date().getFullYear();
   const prefix = `${jobCardPrefix}-${year}-`;
-  const count = await prisma.jobCard.count({
+  const latestJobCard = await prisma.jobCard.findFirst({
     where: { jobCardNumber: { startsWith: prefix } },
+    orderBy: { jobCardNumber: "desc" },
+    select: { jobCardNumber: true },
   });
-  return `${prefix}${String(count + 1).padStart(4, "0")}`;
+  const latestSequence = latestJobCard?.jobCardNumber.match(/(\d+)$/)?.[1];
+  const nextSequence = latestSequence ? Number(latestSequence) + 1 : 1;
+
+  return `${prefix}${String(nextSequence).padStart(4, "0")}`;
 }
 
 function documentNumberFromJobCard(jobCardNumber: string, prefix: string) {
@@ -488,11 +501,22 @@ function parseLineItems(formData: FormData) {
   const categories = formData.getAll("itemCategory");
   const quantities = formData.getAll("itemQuantity");
   const unitPrices = formData.getAll("itemUnitPrice");
+  const amounts = formData.getAll("itemAmount");
 
   return descriptions
     .map((description, index) => {
       const partService = typeof partServices[index] === "string" ? partServices[index].trim() : "";
       const lineDescription = typeof description === "string" ? description.trim() : "";
+      const quantityText = typeof quantities[index] === "string" ? quantities[index] : "0";
+      const unitPriceText = typeof unitPrices[index] === "string" ? unitPrices[index] : "0";
+      const amountText = typeof amounts[index] === "string" ? amounts[index].trim() : "";
+      const quantity = looseDecimal(quantityText);
+      const unitPrice = decimal(unitPriceText);
+      const enteredAmount = amountText ? decimal(amountText) : null;
+      const strictQuantity = strictDecimal(quantityText);
+      const strictUnitPrice = strictDecimal(unitPriceText);
+      const calculatedAmount =
+        strictQuantity && strictUnitPrice ? strictQuantity.mul(strictUnitPrice) : unitPrice;
 
       return {
         partService: optional(partService || lineDescription),
@@ -502,15 +526,12 @@ function parseLineItems(formData: FormData) {
           typeof categories[index] === "string"
             ? (categories[index] as ItemCategory)
             : ItemCategory.SERVICE,
-        quantity: looseDecimal(typeof quantities[index] === "string" ? quantities[index] : "0"),
-        unitPrice: decimal(typeof unitPrices[index] === "string" ? unitPrices[index] : "0"),
+        quantity,
+        unitPrice,
+        amount: enteredAmount ?? calculatedAmount,
       };
     })
-    .filter((item) => item.partService || item.description)
-    .map((item) => ({
-      ...item,
-      amount: item.quantity.mul(item.unitPrice),
-    }));
+    .filter((item) => item.partService || item.description);
 }
 
 function paymentStatusFor(total: Prisma.Decimal, paid: Prisma.Decimal) {
@@ -593,22 +614,71 @@ export async function saveJobCard(id: string | null, formData: FormData) {
   const paymentMode = Object.values(PaymentMode).includes(paymentModeValue as PaymentMode)
     ? (paymentModeValue as PaymentMode)
     : undefined;
+  const customerName = str(formData, "customerName");
+  const customerMobile = normalizeMobile(str(formData, "customerMobile"));
+  const customerWhatsapp = normalizeMobile(str(formData, "customerWhatsapp"));
+  const customerEmail = str(formData, "customerEmail");
+  const customerAddress = str(formData, "customerAddress");
+  const customerCity = str(formData, "customerCity");
+  const hasCustomerDetails = Boolean(
+    customerName || customerMobile || customerWhatsapp || customerEmail || customerAddress || customerCity,
+  );
+  const vehicleNumber = str(formData, "newVehicleNumber").toUpperCase().replace(/\s/g, "");
+  const makeModel = str(formData, "newVehicleMakeModel");
+  let brand = str(formData, "newVehicleBrand");
+  let model = str(formData, "newVehicleModel");
+  const fuelType = str(formData, "newVehicleFuelType");
+  const vehicleVariant = str(formData, "newVehicleVariant");
+  const vehicleYear = str(formData, "newVehicleYear");
+  const vehicleOdometer = str(formData, "newVehicleOdometer");
+  const vehicleChassisNumber = str(formData, "newVehicleChassisNumber");
+  const vehicleEngineNumber = str(formData, "newVehicleEngineNumber");
+  const vehicleNotes = str(formData, "newVehicleNotes");
+  const hasVehicleDetails = Boolean(
+    vehicleNumber ||
+      makeModel ||
+      brand ||
+      model ||
+      fuelType ||
+      vehicleVariant ||
+      vehicleYear ||
+      vehicleOdometer ||
+      vehicleChassisNumber ||
+      vehicleEngineNumber ||
+      vehicleNotes,
+  );
 
-  if (!customerId && !id) {
-    const customerName = str(formData, "customerName");
-    const customerMobile = normalizeMobile(str(formData, "customerMobile"));
+  if ((!brand || !model) && makeModel) {
+    const [firstPart, ...remainingParts] = makeModel.split(/\s+/);
+    brand = brand || firstPart || makeModel;
+    model = model || remainingParts.join(" ") || makeModel;
+  }
 
+  if (vehicleId && !customerId) {
+    const vehicle = await prisma.vehicle.findUniqueOrThrow({ where: { id: vehicleId } });
+    customerId = vehicle.customerId;
+  }
+
+  if (!customerId) {
     if (!customerName || !customerMobile) {
       throw new Error("Select an existing customer or enter new customer name and mobile number.");
+    }
+
+    if (customerMobile.length !== 10) {
+      throw new Error("Enter a valid 10 digit customer mobile number.");
+    }
+
+    if (customerWhatsapp && customerWhatsapp.length !== 10) {
+      throw new Error("Enter a valid 10 digit alternate mobile number.");
     }
 
     const customerData = {
       name: customerName,
       mobile: customerMobile,
-      whatsapp: optional(normalizeMobile(str(formData, "customerWhatsapp"))),
-      email: optional(str(formData, "customerEmail")),
-      address: optional(str(formData, "customerAddress")),
-      city: optional(str(formData, "customerCity")),
+      whatsapp: optional(customerWhatsapp),
+      email: optional(customerEmail),
+      address: optional(customerAddress),
+      city: optional(customerCity),
     };
     const customer =
       (await prisma.customer.findUnique({ where: { mobile: customerMobile } })) ??
@@ -628,21 +698,33 @@ export async function saveJobCard(id: string | null, formData: FormData) {
     }
 
     customerId = customer.id;
-  }
-
-  if (!vehicleId && !id) {
-    const vehicleNumber = str(formData, "newVehicleNumber").toUpperCase().replace(/\s/g, "");
-    const makeModel = str(formData, "newVehicleMakeModel");
-    let brand = str(formData, "newVehicleBrand");
-    let model = str(formData, "newVehicleModel");
-    const fuelType = str(formData, "newVehicleFuelType");
-
-    if ((!brand || !model) && makeModel) {
-      const [firstPart, ...remainingParts] = makeModel.split(/\s+/);
-      brand = brand || firstPart || makeModel;
-      model = model || remainingParts.join(" ") || makeModel;
+  } else if (hasCustomerDetails) {
+    if (!customerName || !customerMobile) {
+      throw new Error("Select an existing customer or enter new customer name and mobile number.");
     }
 
+    if (customerMobile.length !== 10) {
+      throw new Error("Enter a valid 10 digit customer mobile number.");
+    }
+
+    if (customerWhatsapp && customerWhatsapp.length !== 10) {
+      throw new Error("Enter a valid 10 digit alternate mobile number.");
+    }
+
+    await prisma.customer.update({
+      where: { id: customerId },
+      data: {
+        name: customerName,
+        mobile: customerMobile,
+        whatsapp: optional(customerWhatsapp),
+        email: optional(customerEmail),
+        address: optional(customerAddress),
+        city: optional(customerCity),
+      },
+    });
+  }
+
+  if (!vehicleId) {
     if (!customerId || !vehicleNumber || !brand || !model || !fuelType) {
       throw new Error("Select an existing vehicle or enter new vehicle number, brand, model, and fuel type.");
     }
@@ -653,12 +735,12 @@ export async function saveJobCard(id: string | null, formData: FormData) {
       brand,
       model,
       fuelType,
-      variant: optional(str(formData, "newVehicleVariant")),
-      year: optionalInt(str(formData, "newVehicleYear")),
-      odometerReading: optionalInt(str(formData, "newVehicleOdometer")),
-      chassisNumber: optional(str(formData, "newVehicleChassisNumber")),
-      engineNumber: optional(str(formData, "newVehicleEngineNumber")),
-      notes: optional(str(formData, "newVehicleNotes")),
+      variant: optional(vehicleVariant),
+      year: optionalInt(vehicleYear),
+      odometerReading: optionalInt(vehicleOdometer),
+      chassisNumber: optional(vehicleChassisNumber),
+      engineNumber: optional(vehicleEngineNumber),
+      notes: optional(vehicleNotes),
     };
     const vehicle =
       (await prisma.vehicle.findUnique({ where: { vehicleNumber } })) ??
@@ -683,11 +765,26 @@ export async function saveJobCard(id: string | null, formData: FormData) {
 
     vehicleId = vehicle.id;
     customerId = vehicle.customerId;
-  }
+  } else if (hasVehicleDetails) {
+    if (!vehicleNumber || !brand || !model || !fuelType) {
+      throw new Error("Select an existing vehicle or enter new vehicle number, brand, model, and fuel type.");
+    }
 
-  if (vehicleId && !customerId) {
-    const vehicle = await prisma.vehicle.findUniqueOrThrow({ where: { id: vehicleId } });
-    customerId = vehicle.customerId;
+    await prisma.vehicle.update({
+      where: { id: vehicleId },
+      data: {
+        vehicleNumber,
+        brand,
+        model,
+        fuelType,
+        variant: optional(vehicleVariant),
+        year: optionalInt(vehicleYear),
+        odometerReading: optionalInt(vehicleOdometer),
+        chassisNumber: optional(vehicleChassisNumber),
+        engineNumber: optional(vehicleEngineNumber),
+        notes: optional(vehicleNotes),
+      },
+    });
   }
 
   if (!customerId || !vehicleId) {
@@ -719,12 +816,18 @@ export async function saveJobCard(id: string | null, formData: FormData) {
     status,
   };
 
+  const inspectionEntries = parseInspectionItems(formData);
+
   if (id) {
     const old = await prisma.jobCard.findUniqueOrThrow({ where: { id } });
     await prisma.jobCard.update({
       where: { id },
       data: {
         ...data,
+        inspectionItems: {
+          deleteMany: {},
+          create: inspectionEntries.length ? inspectionEntries : inspectionItemNames.map((name) => ({ name })),
+        },
         serviceObservations: {
           deleteMany: {},
           create: serviceObservations,
@@ -748,7 +851,6 @@ export async function saveJobCard(id: string | null, formData: FormData) {
     redirect(`/job-cards/${id}`);
   }
 
-  const inspectionEntries = parseInspectionItems(formData);
   const jobCard = await prisma.jobCard.create({
     data: {
       ...data,
@@ -801,9 +903,61 @@ export async function deleteJobCard(id: string) {
     throw new Error("Delete linked estimates and invoices before deleting this job card.");
   }
 
-  await prisma.jobCard.delete({ where: { id } });
+  await prisma.$transaction(async (tx) => {
+    await tx.jobCard.delete({ where: { id } });
+
+    const vehicle = await tx.vehicle.findUnique({
+      where: { id: jobCard.vehicleId },
+      include: {
+        _count: {
+          select: {
+            jobCards: true,
+            estimates: true,
+            invoices: true,
+          },
+        },
+      },
+    });
+
+    if (
+      vehicle &&
+      vehicle._count.jobCards === 0 &&
+      vehicle._count.estimates === 0 &&
+      vehicle._count.invoices === 0
+    ) {
+      await tx.vehicle.delete({ where: { id: vehicle.id } });
+    }
+
+    const customer = await tx.customer.findUnique({
+      where: { id: jobCard.customerId },
+      include: {
+        _count: {
+          select: {
+            vehicles: true,
+            jobCards: true,
+            estimates: true,
+            invoices: true,
+            payments: true,
+          },
+        },
+      },
+    });
+
+    if (
+      customer &&
+      customer._count.vehicles === 0 &&
+      customer._count.jobCards === 0 &&
+      customer._count.estimates === 0 &&
+      customer._count.invoices === 0 &&
+      customer._count.payments === 0
+    ) {
+      await tx.customer.delete({ where: { id: customer.id } });
+    }
+  });
+
   revalidatePath("/");
   revalidatePath("/job-cards");
+  revalidatePath("/job-cards/new");
   redirect("/job-cards");
   });
 }

@@ -19,6 +19,7 @@ import { statusMessageTemplateFields, statusTemplatesFromJson } from "@/lib/stat
 import { label } from "@/lib/utils";
 import { Field, inputClass, textareaClass } from "@/components/ui";
 import { SubmitButton } from "@/components/submit-button";
+import { JobCardDraftGuard } from "@/components/job-card-draft-guard";
 import { JobCardPartsEditor } from "@/components/job-card-parts-editor";
 import { LineItemsEditor } from "@/components/line-items-editor";
 import { Fragment, type ReactNode } from "react";
@@ -84,6 +85,7 @@ type JobCardOption = {
     description: string | null;
     quantity: Decimalish;
     unitPrice: Decimalish;
+    amount?: Decimalish;
   }[];
 };
 
@@ -110,6 +112,7 @@ type LineItem = {
   category: string;
   quantity: Decimalish;
   unitPrice: Decimalish;
+  amount?: Decimalish;
 };
 
 type WorkshopSettingOption = {
@@ -171,6 +174,7 @@ function observationsToLineItems(observations: JobCardOption["serviceObservation
     category: categoryForObservation(observation),
     quantity: valueOf(observation.quantity),
     unitPrice: valueOf(observation.unitPrice),
+    amount: "amount" in observation ? valueOf(observation.amount as Decimalish) : undefined,
   }));
 }
 
@@ -182,6 +186,7 @@ function lineItemsForEditor(items: LineItem[] | undefined): LineItem[] {
     category: item.category,
     quantity: valueOf(item.quantity),
     unitPrice: valueOf(item.unitPrice),
+    amount: valueOf(item.amount),
   }));
 }
 
@@ -283,14 +288,19 @@ function JobCardField({
   labelText,
   children,
   className = "",
+  required = false,
 }: {
   labelText: string;
   children: ReactNode;
   className?: string;
+  required?: boolean;
 }) {
   return (
     <label className={`grid gap-2 text-sm font-bold text-slate-950 ${className}`}>
-      <span>{labelText}</span>
+      <span>
+        {labelText}
+        {required ? <span className="ml-1 text-[#dc2626]">*</span> : null}
+      </span>
       {children}
     </label>
   );
@@ -301,6 +311,24 @@ function JobCardInfoRow({ labelText, children }: { labelText: string; children: 
     <div className="grid items-center gap-2 sm:grid-cols-[140px_1fr]">
       <span className="text-sm font-bold text-slate-950">{labelText}</span>
       {children}
+    </div>
+  );
+}
+
+function DocumentTextRow({
+  labelText,
+  value,
+  className = "",
+}: {
+  labelText: string;
+  value: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={`grid grid-cols-[145px_10px_1fr] items-start gap-2 text-sm leading-6 ${className}`}>
+      <span className="font-bold text-slate-950">{labelText}</span>
+      <span className="font-bold text-slate-950">:</span>
+      <span className="text-slate-950">{value === null || value === undefined || value === "" ? "-" : value}</span>
     </div>
   );
 }
@@ -336,6 +364,27 @@ export function JobCardForm({
     balanceDue: Decimalish;
     paymentMode: string | null;
     status: string;
+    customer?: {
+      name: string;
+      mobile: string;
+      whatsapp?: string | null;
+      address?: string | null;
+      city?: string | null;
+    };
+    vehicle?: {
+      vehicleNumber: string;
+      brand: string;
+      model: string;
+      variant?: string | null;
+      fuelType: string;
+      year?: number | null;
+      odometerReading?: number | null;
+    };
+    inspectionItems?: {
+      name: string;
+      status: string;
+      remarks: string | null;
+    }[];
     serviceObservations?: {
       id: string;
       partService: string;
@@ -356,6 +405,7 @@ export function JobCardForm({
   } | null;
 }) {
   const action = saveJobCard.bind(null, jobCard?.id ?? null);
+  const draftKey = "meharban-job-card-new-draft-v1";
   const now = new Date();
   const displayDate = toDateInput(jobCard?.dateTime ?? now);
   const workshopName = setting?.workshopName || "Meharban Car A/C Works";
@@ -369,6 +419,9 @@ export function JobCardForm({
     inspectionItemNames[index],
     inspectionItemNames[index + Math.ceil(inspectionItemNames.length / 2)],
   ]);
+  const inspectionByName = new Map((jobCard?.inspectionItems ?? []).map((item) => [item.name, item]));
+  const selectedCustomer = jobCard?.customer ?? customers.find((customer) => customer.id === jobCard?.customerId);
+  const selectedVehicle = jobCard?.vehicle ?? vehicles.find((vehicle) => vehicle.id === jobCard?.vehicleId);
   const serviceObservations =
     jobCard?.serviceObservations?.map((observation) => ({
       id: observation.id,
@@ -380,12 +433,19 @@ export function JobCardForm({
     })) ?? [];
 
   return (
-    <form action={action} className="document-lock-font mx-auto max-w-[1250px] rounded-xl border-2 border-[#d9a5b3] bg-white p-4 shadow-[0_10px_30px_rgba(139,15,47,0.15)]">
+    <form id="job-card-form" action={action} noValidate className="document-lock-font mx-auto max-w-[1250px] rounded-xl border-2 border-[#d9a5b3] bg-white p-4 shadow-[0_10px_30px_rgba(139,15,47,0.15)]">
+      <JobCardDraftGuard enabled={!jobCard} storageKey={draftKey} />
       <input type="hidden" name="priority" value={jobCard?.priority ?? "NORMAL"} />
       <input type="hidden" name="status" value={jobCard?.status ?? "VEHICLE_RECEIVED"} />
       <input type="hidden" name="bayNumber" value={jobCard?.bayNumber ?? ""} />
       <input type="hidden" name="problemFound" value={jobCard?.problemFound ?? ""} />
       <input type="hidden" name="serviceRecommendation" value={jobCard?.serviceRecommendation ?? ""} />
+      {jobCard ? (
+        <>
+          <input type="hidden" name="customerId" value={jobCard.customerId} />
+          <input type="hidden" name="vehicleId" value={jobCard.vehicleId} />
+        </>
+      ) : null}
       <div className="grid gap-5 xl:grid-cols-[1fr_360px]">
         <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-start">
           <div className="grid h-[130px] w-[130px] shrink-0 place-items-center overflow-hidden rounded-full border-[3px] border-[#8b0f2f] bg-white p-2">
@@ -430,11 +490,11 @@ export function JobCardForm({
         </div>
       </div>
 
-      {hasExistingRecords ? (
+      {!jobCard && hasExistingRecords ? (
         <FormSection title="Existing Records" className="mt-4">
           <div className="grid gap-4 lg:grid-cols-2">
             <JobCardField labelText="Existing customer">
-              <select name="customerId" defaultValue={jobCard?.customerId ?? ""} className={jobCardInputClass}>
+              <select name="customerId" defaultValue="" className={jobCardInputClass}>
                 <option value="">New customer</option>
                 {customers.map((customer) => (
                   <option key={customer.id} value={customer.id}>
@@ -444,7 +504,7 @@ export function JobCardForm({
               </select>
             </JobCardField>
             <JobCardField labelText="Existing vehicle">
-              <select name="vehicleId" defaultValue={jobCard?.vehicleId ?? ""} className={jobCardInputClass}>
+              <select name="vehicleId" defaultValue="" className={jobCardInputClass}>
                 <option value="">New vehicle</option>
                 {vehicles.map((vehicle) => (
                   <option key={vehicle.id} value={vehicle.id}>
@@ -457,66 +517,112 @@ export function JobCardForm({
         </FormSection>
       ) : null}
 
-      {!jobCard ? (
-        <div className="mt-4 grid gap-4 xl:grid-cols-[1fr_1.4fr]">
-          <FormSection title="Customer Details">
-            <div className="grid gap-4 md:grid-cols-2">
-              <JobCardField labelText="Customer Name" className="md:col-span-2">
-                <input name="customerName" placeholder="Enter customer name" autoComplete="name" className={jobCardInputClass} />
-              </JobCardField>
-              <JobCardField labelText="Contact No.">
-                <input name="customerMobile" type="tel" inputMode="tel" placeholder="Enter mobile number" autoComplete="tel" className={jobCardInputClass} />
-              </JobCardField>
-              <JobCardField labelText="Alternate No.">
-                <input name="customerWhatsapp" type="tel" inputMode="tel" placeholder="Optional" className={jobCardInputClass} />
-              </JobCardField>
-              <JobCardField labelText="Address" className="md:col-span-2">
-                <textarea name="customerAddress" placeholder="Enter complete address" autoComplete="street-address" className={jobCardTextareaClass} />
-              </JobCardField>
-            </div>
-          </FormSection>
+      <div className="mt-4 grid gap-4 xl:grid-cols-[1fr_1.4fr]">
+        <FormSection title="Customer Details">
+          <div className="grid gap-4 md:grid-cols-2">
+            <JobCardField labelText="Customer Name" className="md:col-span-2" required>
+              <input name="customerName" defaultValue={selectedCustomer?.name ?? ""} placeholder="Enter customer name" autoComplete="name" className={jobCardInputClass} />
+            </JobCardField>
+            <JobCardField labelText="Contact No." required>
+              <input
+                name="customerMobile"
+                type="tel"
+                inputMode="numeric"
+                maxLength={10}
+                pattern="[0-9]{10}"
+                defaultValue={selectedCustomer?.mobile ?? ""}
+                placeholder="10 digit mobile number"
+                autoComplete="tel"
+                className={jobCardInputClass}
+              />
+            </JobCardField>
+            <JobCardField labelText="Alternate No.">
+              <input
+                name="customerWhatsapp"
+                type="tel"
+                inputMode="numeric"
+                maxLength={10}
+                pattern="[0-9]{10}"
+                defaultValue={selectedCustomer?.whatsapp ?? ""}
+                placeholder="Optional 10 digit number"
+                className={jobCardInputClass}
+              />
+            </JobCardField>
+            <JobCardField labelText="Address" className="md:col-span-2">
+              <textarea
+                name="customerAddress"
+                defaultValue={selectedCustomer?.address ?? ""}
+                placeholder="Enter complete address"
+                autoComplete="street-address"
+                className={jobCardTextareaClass}
+              />
+            </JobCardField>
+          </div>
+        </FormSection>
 
-          <FormSection title="Vehicle Details">
-            <div className="grid gap-4 md:grid-cols-2">
-              <JobCardField labelText="Registration Number">
-                <input name="newVehicleNumber" placeholder="TS09EX1234" className={`${jobCardInputClass} uppercase`} />
-              </JobCardField>
-              <JobCardField labelText="Fuel Type">
-                <select name="newVehicleFuelType" defaultValue="" className={jobCardInputClass}>
-                  <option value="">Select fuel type</option>
-                  {fuelTypeOptions.map((fuelType) => (
-                    <option key={fuelType} value={fuelType}>
-                      {fuelType}
-                    </option>
-                  ))}
-                </select>
-              </JobCardField>
-              <JobCardField labelText="Car Make / Model">
-                <input name="newVehicleMakeModel" placeholder="Hyundai Creta" autoComplete="off" className={jobCardInputClass} />
-              </JobCardField>
-              <JobCardField labelText="Gear Type">
-                <select name="newVehicleVariant" defaultValue="" className={jobCardInputClass}>
-                  <option value="">Select gear type</option>
-                  {gearTypeOptions.map((gearType) => (
-                    <option key={gearType} value={gearType}>
-                      {gearType}
-                    </option>
-                  ))}
-                </select>
-              </JobCardField>
-              <JobCardField labelText="Year">
-                <input name="newVehicleYear" type="number" min="1980" max="2099" placeholder="2021" inputMode="numeric" className={jobCardInputClass} />
-              </JobCardField>
-              <JobCardField labelText="KM Reading">
-                <input name="newVehicleOdometer" type="number" min="0" placeholder="48620" inputMode="numeric" className={jobCardInputClass} />
-              </JobCardField>
-              <JobCardField labelText="Expected Delivery Date" className="md:col-span-2">
-                <input name="expectedDeliveryDate" type="date" className={jobCardInputClass} />
-              </JobCardField>
-            </div>
-          </FormSection>
-        </div>
-      ) : null}
+        <FormSection title="Vehicle Details">
+          <div className="grid gap-4 md:grid-cols-2">
+            <JobCardField labelText="Registration Number" required>
+              <input name="newVehicleNumber" defaultValue={selectedVehicle?.vehicleNumber ?? ""} placeholder="TS09EX1234" className={`${jobCardInputClass} uppercase`} />
+            </JobCardField>
+            <JobCardField labelText="Fuel Type" required>
+              <select name="newVehicleFuelType" defaultValue={selectedVehicle?.fuelType ?? ""} className={jobCardInputClass}>
+                <option value="">Select fuel type</option>
+                {fuelTypeOptions.map((fuelType) => (
+                  <option key={fuelType} value={fuelType}>
+                    {fuelType}
+                  </option>
+                ))}
+              </select>
+            </JobCardField>
+            <JobCardField labelText="Car Make / Model" required>
+              <input
+                name="newVehicleMakeModel"
+                defaultValue={[selectedVehicle?.brand, selectedVehicle?.model].filter(Boolean).join(" ")}
+                placeholder="Hyundai Creta"
+                autoComplete="off"
+                className={jobCardInputClass}
+              />
+            </JobCardField>
+            <JobCardField labelText="Gear Type">
+              <select name="newVehicleVariant" defaultValue={selectedVehicle?.variant ?? ""} className={jobCardInputClass}>
+                <option value="">Select gear type</option>
+                {gearTypeOptions.map((gearType) => (
+                  <option key={gearType} value={gearType}>
+                    {gearType}
+                  </option>
+                ))}
+              </select>
+            </JobCardField>
+            <JobCardField labelText="Year">
+              <input
+                name="newVehicleYear"
+                type="number"
+                min="1980"
+                max="2099"
+                defaultValue={selectedVehicle?.year ?? ""}
+                placeholder="2021"
+                inputMode="numeric"
+                className={jobCardInputClass}
+              />
+            </JobCardField>
+            <JobCardField labelText="KM Reading">
+              <input
+                name="newVehicleOdometer"
+                type="number"
+                min="0"
+                defaultValue={selectedVehicle?.odometerReading ?? ""}
+                placeholder="48620"
+                inputMode="numeric"
+                className={jobCardInputClass}
+              />
+            </JobCardField>
+            <JobCardField labelText="Expected Delivery Date" className="md:col-span-2">
+              <input name="expectedDeliveryDate" type="date" defaultValue={toDateInput(jobCard?.expectedDeliveryAt)} className={jobCardInputClass} />
+            </JobCardField>
+          </div>
+        </FormSection>
+      </div>
 
       <FormSection title="Complaint / Issue Reported By Customer" className="mt-4">
         <textarea
@@ -527,58 +633,61 @@ export function JobCardForm({
         />
       </FormSection>
 
-      {!jobCard ? (
-        <FormSection title="A/C System Checklist / Inspection Checklist" className="mt-4">
-          <div className="overflow-x-auto">
-            <table className="min-w-[900px] w-full border-collapse text-sm">
-              <thead>
-                <tr className="bg-[#fff3f6] text-[#650820]">
-                  <th className="border border-[#ead0d7] px-2 py-2 text-left uppercase">Item</th>
-                  <th className="border border-[#ead0d7] px-2 py-2 text-left uppercase">Status</th>
-                  <th className="border border-[#ead0d7] px-2 py-2 text-left uppercase">Remarks</th>
-                  <th className="border border-[#ead0d7] px-2 py-2 text-left uppercase">Item</th>
-                  <th className="border border-[#ead0d7] px-2 py-2 text-left uppercase">Status</th>
-                  <th className="border border-[#ead0d7] px-2 py-2 text-left uppercase">Remarks</th>
+      <FormSection title="A/C System Checklist / Inspection Checklist" className="mt-4">
+        <div className="overflow-x-auto">
+          <table className="min-w-[900px] w-full border-collapse text-sm">
+            <thead>
+              <tr className="bg-[#fff3f6] text-[#650820]">
+                <th className="border border-[#ead0d7] px-2 py-2 text-left uppercase">Item</th>
+                <th className="border border-[#ead0d7] px-2 py-2 text-left uppercase">Status</th>
+                <th className="border border-[#ead0d7] px-2 py-2 text-left uppercase">Remarks</th>
+                <th className="border border-[#ead0d7] px-2 py-2 text-left uppercase">Item</th>
+                <th className="border border-[#ead0d7] px-2 py-2 text-left uppercase">Status</th>
+                <th className="border border-[#ead0d7] px-2 py-2 text-left uppercase">Remarks</th>
+              </tr>
+            </thead>
+            <tbody>
+              {inspectionRows.map(([left, right], index) => (
+                <tr key={left ?? index}>
+                  {[left, right].map((item, cellIndex) => (
+                    item ? (
+                      <Fragment key={item}>
+                        <td className="border border-[#ead0d7] px-2 py-2 font-bold">
+                          <input type="hidden" name="inspectionName" value={item} />
+                          {item}
+                        </td>
+                        <td className="border border-[#ead0d7] px-2 py-2">
+                          <select name="inspectionStatus" defaultValue={inspectionByName.get(item)?.status ?? "OK"} className={jobCardInputClass}>
+                            {inspectionStatuses.map((status) => (
+                              <option key={status} value={status}>
+                                {status === "OK" ? "OK / Good" : status === "ATTENTION" ? "Attention" : "Not OK / Need Action"}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                        <td className="border border-[#ead0d7] px-2 py-2">
+                          <input
+                            name="inspectionRemarks"
+                            defaultValue={inspectionByName.get(item)?.remarks ?? ""}
+                            placeholder="Remarks"
+                            className={jobCardInputClass}
+                          />
+                        </td>
+                      </Fragment>
+                    ) : (
+                      <Fragment key={`empty-${cellIndex}`}>
+                        <td className="border border-[#ead0d7] px-2 py-2" />
+                        <td className="border border-[#ead0d7] px-2 py-2" />
+                        <td className="border border-[#ead0d7] px-2 py-2" />
+                      </Fragment>
+                    )
+                  ))}
                 </tr>
-              </thead>
-              <tbody>
-                {inspectionRows.map(([left, right], index) => (
-                  <tr key={left ?? index}>
-                    {[left, right].map((item, cellIndex) => (
-                      item ? (
-                        <Fragment key={item}>
-                          <td className="border border-[#ead0d7] px-2 py-2 font-bold">
-                            <input type="hidden" name="inspectionName" value={item} />
-                            {item}
-                          </td>
-                          <td className="border border-[#ead0d7] px-2 py-2">
-                            <select name="inspectionStatus" defaultValue="OK" className={jobCardInputClass}>
-                              {inspectionStatuses.map((status) => (
-                                <option key={status} value={status}>
-                                  {status === "OK" ? "OK / Good" : status === "ATTENTION" ? "Attention" : "Not OK / Need Action"}
-                                </option>
-                              ))}
-                            </select>
-                          </td>
-                          <td className="border border-[#ead0d7] px-2 py-2">
-                            <input name="inspectionRemarks" placeholder="Remarks" className={jobCardInputClass} />
-                          </td>
-                        </Fragment>
-                      ) : (
-                        <Fragment key={`empty-${cellIndex}`}>
-                          <td className="border border-[#ead0d7] px-2 py-2" />
-                          <td className="border border-[#ead0d7] px-2 py-2" />
-                          <td className="border border-[#ead0d7] px-2 py-2" />
-                        </Fragment>
-                      )
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </FormSection>
-      ) : null}
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </FormSection>
 
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
         <FormSection title="Work To Be Done">
@@ -595,6 +704,7 @@ export function JobCardForm({
         advanceAmount={valueOf(jobCard?.advanceAmount)}
         balanceDue={valueOf(jobCard?.balanceDue)}
         paymentMode={jobCard?.paymentMode}
+        draftKey={!jobCard ? draftKey : undefined}
       />
 
       <FormSection title="Technician / Workshop Use Only" className="mt-4">
@@ -761,28 +871,35 @@ export function EstimateForm({
 
       <div className="mt-4 grid gap-3 md:grid-cols-[0.72fr_1fr]">
         <FormSection title="Customer Details">
-          <div className="grid gap-3">
-            <JobCardInfoRow labelText="Customer Name">{readOnlyValue(lockedJobCard?.customer.name)}</JobCardInfoRow>
-            <JobCardInfoRow labelText="Contact No.">{readOnlyValue(displayNumber(lockedJobCard?.customer.mobile))}</JobCardInfoRow>
-            <JobCardInfoRow labelText="Address">{readOnlyValue(lockedJobCard?.customer.address || lockedJobCard?.customer.city || "-")}</JobCardInfoRow>
+          <div className="grid gap-3 py-1">
+            <DocumentTextRow labelText="Customer Name" value={lockedJobCard?.customer.name} />
+            <DocumentTextRow labelText="Contact No." value={displayNumber(lockedJobCard?.customer.mobile)} />
+            <DocumentTextRow labelText="Address" value={lockedJobCard?.customer.address || lockedJobCard?.customer.city || "-"} />
           </div>
         </FormSection>
 
         <FormSection title="Vehicle Details">
-          <div className="grid gap-3 md:grid-cols-2">
-            <JobCardInfoRow labelText="Reg Number">{readOnlyValue(lockedJobCard?.vehicle.vehicleNumber)}</JobCardInfoRow>
-            <JobCardInfoRow labelText="Fuel Type">{readOnlyValue(lockedJobCard?.vehicle.fuelType)}</JobCardInfoRow>
-            <JobCardInfoRow labelText="Car Make / Model">
-              {readOnlyValue(`${lockedJobCard?.vehicle.brand ?? ""} ${lockedJobCard?.vehicle.model ?? ""}`.trim())}
-            </JobCardInfoRow>
-            <JobCardInfoRow labelText="Gear Type">{readOnlyValue(lockedJobCard?.vehicle.variant || "-")}</JobCardInfoRow>
-            <JobCardInfoRow labelText="Year">{readOnlyValue(lockedJobCard?.vehicle.year ?? "-")}</JobCardInfoRow>
-            <JobCardInfoRow labelText="Delivery Date">
-              {readOnlyValue(lockedJobCard?.expectedDeliveryAt ? `${toDateInput(lockedJobCard.expectedDeliveryAt)} (Expected)` : "-")}
-            </JobCardInfoRow>
-            <JobCardInfoRow labelText="KM Reading">
-              {readOnlyValue(lockedJobCard?.vehicle.odometerReading ? `${lockedJobCard.vehicle.odometerReading.toLocaleString("en-IN")} KM` : "-")}
-            </JobCardInfoRow>
+          <div className="grid gap-4 py-1 md:grid-cols-2">
+            <div className="grid gap-3">
+              <DocumentTextRow labelText="Reg Number" value={lockedJobCard?.vehicle.vehicleNumber} />
+              <DocumentTextRow
+                labelText="Car Make / Model"
+                value={`${lockedJobCard?.vehicle.brand ?? ""} ${lockedJobCard?.vehicle.model ?? ""}`.trim()}
+              />
+              <DocumentTextRow labelText="Year" value={lockedJobCard?.vehicle.year ?? "-"} />
+              <DocumentTextRow
+                labelText="KM Reading"
+                value={lockedJobCard?.vehicle.odometerReading ? `${lockedJobCard.vehicle.odometerReading.toLocaleString("en-IN")} KM` : "-"}
+              />
+            </div>
+            <div className="grid gap-3 md:border-l md:border-[#d9a5b3] md:pl-8">
+              <DocumentTextRow labelText="Fuel Type" value={lockedJobCard?.vehicle.fuelType} />
+              <DocumentTextRow labelText="Gear Type" value={lockedJobCard?.vehicle.variant || "-"} />
+              <DocumentTextRow
+                labelText="Delivery Date"
+                value={lockedJobCard?.expectedDeliveryAt ? `${toDateInput(lockedJobCard.expectedDeliveryAt)} (Expected)` : "-"}
+              />
+            </div>
           </div>
         </FormSection>
       </div>

@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { useForm } from "react-hook-form";
+import { SpanLoader } from "@/components/span-loader";
 import { loginAction, type AuthActionState } from "@/lib/actions";
 
 type LoginFields = {
@@ -53,9 +54,10 @@ export function LoginForm() {
       <button
         type="submit"
         disabled={pending}
-        className="h-11 rounded-lg bg-[#5a173b] px-4 text-sm font-black uppercase tracking-wide text-white transition hover:bg-[#42102e] disabled:opacity-60"
+        aria-label={pending ? "Signing in" : undefined}
+        className="inline-flex h-11 items-center justify-center rounded-lg bg-[#5a173b] px-4 text-sm font-black uppercase tracking-wide text-white transition hover:bg-[#42102e] disabled:opacity-60"
       >
-        {pending ? "Signing in..." : "Login"}
+        {pending ? <SpanLoader size="button" /> : "Login"}
       </button>
     </form>
   );
