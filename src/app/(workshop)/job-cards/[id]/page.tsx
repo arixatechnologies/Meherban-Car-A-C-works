@@ -9,7 +9,7 @@ import { Button } from "@/components/ui";
 import { deleteJobCard } from "@/lib/actions";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { createWhatsAppLink, jobCardCreatedBody } from "@/lib/whatsapp";
+import { createWhatsAppLink, jobCardCreatedBody, requestAppUrl } from "@/lib/whatsapp";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -21,6 +21,7 @@ export default async function JobCardDetailPage({
 }) {
   const { id } = await params;
   const user = await requireUser();
+  const baseUrl = await requestAppUrl();
   const jobCard = await prisma.jobCard.findUnique({
     where: { id },
     include: {
@@ -49,6 +50,7 @@ export default async function JobCardDetailPage({
     vehicleNumber: jobCard.vehicle.vehicleNumber,
     jobCardNumber: jobCard.jobCardNumber,
     trackingToken: jobCard.trackingToken,
+    baseUrl,
   });
   const pdfButtonClass =
     "inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-[#f1b8b8] bg-[#fff0f0] px-4 text-sm font-bold text-[#c62828] transition hover:bg-[#ffe0e0] focus:outline-none focus:ring-2 focus:ring-[#e05252] focus:ring-offset-2";

@@ -12,6 +12,7 @@ import {
   estimateSharedBody,
   invoiceGeneratedBody,
   jobCardCreatedBody,
+  requestAppUrl,
   statusMessageBody,
   statusMessageSentHeading,
 } from "@/lib/whatsapp";
@@ -65,6 +66,7 @@ function sentStatusMessages(
 function statusFallbackLinks({
   jobCard,
   templates,
+  baseUrl,
 }: {
   jobCard: {
     id: string;
@@ -84,6 +86,7 @@ function statusFallbackLinks({
     invoices: { id: string; invoiceNumber: string; totalAmount: Moneyish; paidAmount: Moneyish; balanceAmount: Moneyish }[];
   };
   templates: unknown;
+  baseUrl: string;
 }) {
   const latestEstimate = jobCard.estimates[0];
   const latestInvoice = jobCard.invoices[0];
@@ -111,6 +114,7 @@ function statusFallbackLinks({
     trackingToken: jobCard.trackingToken,
     problemSummary,
     issueName: problemSummary,
+    baseUrl,
   };
 
   return Object.fromEntries(
@@ -133,6 +137,7 @@ export async function BillingWorkspace({
   const params = await searchParams;
   const q = params.q?.trim() ?? "";
   const type = fixedType ?? params.type ?? "all";
+  const baseUrl = await requestAppUrl();
   const returnTo = fixedType ? currentPageHref(formAction, q) : filterHref(type, q);
   const includeJobCards = type === "all" || type === "job-card";
   const includeEstimates = type === "all" || type === "estimate";
@@ -245,6 +250,7 @@ export async function BillingWorkspace({
           fallbackLinks={statusFallbackLinks({
             jobCard,
             templates: setting?.statusMessageTemplates,
+            baseUrl,
           })}
         />
       ),
@@ -256,6 +262,7 @@ export async function BillingWorkspace({
         vehicleNumber: jobCard.vehicle.vehicleNumber,
         jobCardNumber: jobCard.jobCardNumber,
         trackingToken: jobCard.trackingToken,
+        baseUrl,
       }),
     })),
     ...estimates.map((estimate) => ({
@@ -279,6 +286,7 @@ export async function BillingWorkspace({
         estimateNumber: estimate.estimateNumber,
         totalAmount: estimate.totalAmount,
         trackingToken: estimate.jobCard.trackingToken,
+        baseUrl,
       }),
     })),
     ...invoices.map((invoice) => ({
@@ -304,6 +312,7 @@ export async function BillingWorkspace({
         paidAmount: invoice.paidAmount,
         balanceAmount: invoice.balanceAmount,
         trackingToken: invoice.jobCard.trackingToken,
+        baseUrl,
       }),
     })),
   ]

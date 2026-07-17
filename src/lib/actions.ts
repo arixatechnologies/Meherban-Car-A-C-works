@@ -31,6 +31,7 @@ import {
   sendInvoiceGeneratedMessage,
   sendJobCardCreatedMessage,
   sendPaymentReminderMessage,
+  requestAppUrl,
   sendStatusUpdateMessage,
   sendVehicleDeliveredMessage,
   sendVehicleReadyMessage,
@@ -395,6 +396,7 @@ function randomTrackingToken() {
 }
 
 async function jobCardMessageContext(jobCardId: string) {
+  const baseUrl = await requestAppUrl();
   const jobCard = await prisma.jobCard.findUniqueOrThrow({
     where: { id: jobCardId },
     include: {
@@ -431,6 +433,7 @@ async function jobCardMessageContext(jobCardId: string) {
     trackingToken: jobCard.trackingToken,
     problemSummary,
     issueName: problemSummary,
+    baseUrl,
   };
 }
 
@@ -444,6 +447,7 @@ function parseStatusMessageTemplates(formData: FormData) {
 }
 
 async function estimateMessageContext(estimateId: string) {
+  const baseUrl = await requestAppUrl();
   const estimate = await prisma.estimate.findUniqueOrThrow({
     where: { id: estimateId },
     include: {
@@ -465,10 +469,12 @@ async function estimateMessageContext(estimateId: string) {
     totalAmount: estimate.totalAmount,
     balanceAmount: estimate.balanceAmount,
     trackingToken: estimate.jobCard.trackingToken,
+    baseUrl,
   };
 }
 
 async function invoiceMessageContext(invoiceId: string) {
+  const baseUrl = await requestAppUrl();
   const invoice = await prisma.invoice.findUniqueOrThrow({
     where: { id: invoiceId },
     include: {
@@ -491,6 +497,7 @@ async function invoiceMessageContext(invoiceId: string) {
     paidAmount: invoice.paidAmount,
     balanceAmount: invoice.balanceAmount,
     trackingToken: invoice.jobCard.trackingToken,
+    baseUrl,
   };
 }
 

@@ -1,5 +1,6 @@
 import "server-only";
 
+import { headers } from "next/headers";
 import {
   Prisma,
   WhatsAppMessageType,
@@ -33,6 +34,7 @@ type MessageContext = {
   problemSummary?: string;
   issueName?: string;
   amount?: number | string | { toString(): string };
+  baseUrl?: string;
 };
 
 type SendMessageInput = {
@@ -60,23 +62,61 @@ export function createWhatsAppLink(mobileNumber: string, messageBody: string) {
   return `https://wa.me/${formatted}?text=${encodeURIComponent(messageBody)}`;
 }
 
-function appUrl() {
-  return process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+function normalizeBaseUrl(value: string | null | undefined) {
+  if (!value) return "";
+  const trimmed = value.trim().replace(/\/+$/, "");
+  if (!trimmed) return "";
+  return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+}
+
+function envAppUrl() {
+  return (
+    normalizeBaseUrl(process.env.NEXT_PUBLIC_APP_URL) ||
+    normalizeBaseUrl(process.env.APP_URL) ||
+    normalizeBaseUrl(process.env.VERCEL_PROJECT_PRODUCTION_URL) ||
+    normalizeBaseUrl(process.env.VERCEL_URL) ||
+    "http://localhost:3000"
+  );
+}
+
+export async function requestAppUrl() {
+  try {
+    const headerList = await headers();
+    const host =
+      headerList.get("x-forwarded-host") ||
+      headerList.get("x-vercel-forwarded-host") ||
+      headerList.get("host");
+
+    if (!host) return envAppUrl();
+
+    const proto =
+      headerList.get("x-forwarded-proto") ||
+      (host.includes("localhost") || host.startsWith("127.0.0.1") ? "http" : "https");
+
+    return normalizeBaseUrl(`${proto}://${host}`) || envAppUrl();
+  } catch {
+    return envAppUrl();
+  }
+}
+
+function appUrl(context?: MessageContext) {
+  return normalizeBaseUrl(context?.baseUrl) || envAppUrl();
 }
 
 function trackingLink(context: MessageContext) {
-  return context.trackingToken ? `${appUrl()}/track/${context.trackingToken}` : appUrl();
+  const baseUrl = appUrl(context);
+  return context.trackingToken ? `${baseUrl}/track/${context.trackingToken}` : baseUrl;
 }
 
 function estimateLink(context: MessageContext) {
   return context.trackingToken && context.estimateId
-    ? `${appUrl()}/track/${context.trackingToken}/estimate`
+    ? `${appUrl(context)}/track/${context.trackingToken}/estimate`
     : trackingLink(context);
 }
 
 function invoiceLink(context: MessageContext) {
   return context.trackingToken && context.invoiceId
-    ? `${appUrl()}/track/${context.trackingToken}/invoice`
+    ? `${appUrl(context)}/track/${context.trackingToken}/invoice`
     : trackingLink(context);
 }
 
