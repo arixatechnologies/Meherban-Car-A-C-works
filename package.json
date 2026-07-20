@@ -20,7 +20,7 @@
     "@hookform/resolvers": "^5.4.0",
     "@prisma/adapter-pg": "^7.8.0",
     "@prisma/client": "^7.8.0",
-    "@sparticuz/chromium": "^138.0.2",
+    "@sparticuz/chromium-min": "^138.0.2",
     "bcryptjs": "^3.0.3",
     "clsx": "^2.1.1",
     "jose": "^6.2.3",

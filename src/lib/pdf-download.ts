@@ -3,6 +3,16 @@ import "server-only";
 import fs from "node:fs";
 import path from "node:path";
 
+const chromiumVersion = "v138.0.2";
+const pdfViewport = {
+  width: 1120,
+  height: 1600,
+  deviceScaleFactor: 1,
+  hasTouch: false,
+  isLandscape: false,
+  isMobile: false,
+};
+
 const chromeCandidates = [
   process.env.CHROME_EXECUTABLE_PATH,
   process.env.PUPPETEER_EXECUTABLE_PATH,
@@ -31,7 +41,12 @@ function chromeExecutablePath() {
   return chromeCandidates.find((candidate) => fs.existsSync(candidate));
 }
 
-async function chromeLaunchOptions() {
+function defaultChromiumPackUrl() {
+  const arch = process.arch === "arm64" ? "arm64" : "x64";
+  return `https://github.com/Sparticuz/chromium/releases/download/${chromiumVersion}/chromium-${chromiumVersion}-pack.${arch}.tar`;
+}
+
+async function chromeLaunchOptions(puppeteer: typeof import("puppeteer-core")) {
   const executablePath = chromeExecutablePath();
   const baseArgs = [
     "--no-sandbox",
@@ -44,13 +59,21 @@ async function chromeLaunchOptions() {
     return {
       executablePath,
       args: baseArgs,
+      headless: true as const,
+      defaultViewport: pdfViewport,
     };
   }
 
-  const chromium = (await import("@sparticuz/chromium")).default;
+  const chromium = (await import("@sparticuz/chromium-min")).default;
+  chromium.setGraphicsMode = false;
+  const chromiumArgs = Array.from(new Set([...chromium.args, ...baseArgs]));
+  const packUrl = process.env.CHROMIUM_PACK_URL || defaultChromiumPackUrl();
+
   return {
-    executablePath: await chromium.executablePath(),
-    args: Array.from(new Set([...chromium.args, ...baseArgs])),
+    executablePath: await chromium.executablePath(packUrl),
+    args: puppeteer.defaultArgs({ args: chromiumArgs, headless: "shell" }),
+    headless: "shell" as const,
+    defaultViewport: pdfViewport,
   };
 }
 
@@ -65,11 +88,12 @@ export function safePdfFilename(value: string) {
 
 export async function renderPdfFromUrl(url: string, cookieHeader?: string | null) {
   const puppeteer = await import("puppeteer-core");
-  const launchOptions = await chromeLaunchOptions();
+  const launchOptions = await chromeLaunchOptions(puppeteer);
   const browser = await puppeteer.launch({
     executablePath: launchOptions.executablePath,
-    headless: true,
+    headless: launchOptions.headless,
     args: launchOptions.args,
+    defaultViewport: launchOptions.defaultViewport,
   });
 
   try {
@@ -78,7 +102,7 @@ export async function renderPdfFromUrl(url: string, cookieHeader?: string | null
       await page.setExtraHTTPHeaders({ cookie: cookieHeader });
     }
 
-    await page.setViewport({ width: 1120, height: 1600, deviceScaleFactor: 1 });
+    await page.setViewport(pdfViewport);
     await page.goto(url, { waitUntil: "networkidle0", timeout: 60_000 });
     await page.emulateMediaType("screen");
     await page.addStyleTag({
