@@ -19,6 +19,18 @@ export function normalizeMobile(value: string) {
   return value.replace(/\D/g, "").replace(/^91(?=\d{10}$)/, "");
 }
 
+export function vehicleMakeModel(brand: string | null | undefined, model: string | null | undefined) {
+  const cleanBrand = (brand ?? "").trim();
+  const cleanModel = (model ?? "").trim();
+
+  if (!cleanBrand && !cleanModel) return "-";
+  if (!cleanBrand) return cleanModel;
+  if (!cleanModel) return cleanBrand;
+  if (cleanBrand.toLowerCase() === cleanModel.toLowerCase()) return cleanBrand;
+
+  return `${cleanBrand} ${cleanModel}`;
+}
+
 export function initials(name: string) {
   return name
     .split(" ")

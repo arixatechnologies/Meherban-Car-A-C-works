@@ -224,18 +224,19 @@ model JobCard {
 }
 
 model JobCardServiceObservation {
-  id          String   @id @default(cuid())
+  id          String       @id @default(cuid())
   jobCardId   String
-  sortOrder   Int      @default(0)
+  sortOrder   Int          @default(0)
   partService String
   description String?
-  quantity    Decimal  @default(0) @db.Decimal(10, 2)
-  unitPrice   Decimal  @default(0) @db.Decimal(12, 2)
-  amount      Decimal  @default(0) @db.Decimal(12, 2)
+  category    ItemCategory @default(PARTS)
+  quantity    Decimal      @default(0) @db.Decimal(10, 2)
+  unitPrice   Decimal      @default(0) @db.Decimal(12, 2)
+  amount      Decimal      @default(0) @db.Decimal(12, 2)
   remarks     String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  jobCard     JobCard  @relation(fields: [jobCardId], references: [id], onDelete: Cascade)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  jobCard     JobCard      @relation(fields: [jobCardId], references: [id], onDelete: Cascade)
 
   @@index([jobCardId])
 }
@@ -400,31 +401,31 @@ model Payment {
 }
 
 model WhatsAppLog {
-  id            String              @id @default(cuid())
-  customerId    String?
-  jobCardId     String?
-  estimateId    String?
-  invoiceId     String?
-  mobileNumber  String
-  messageType   WhatsAppMessageType
-  messageBody   String
-  sendMethod    WhatsAppSendMethod
-  apiMessageId  String?             @unique
-  apiResponse   Json?
-  webhookStatus String?
+  id               String              @id @default(cuid())
+  customerId       String?
+  jobCardId        String?
+  estimateId       String?
+  invoiceId        String?
+  mobileNumber     String
+  messageType      WhatsAppMessageType
+  messageBody      String
+  sendMethod       WhatsAppSendMethod
+  apiMessageId     String?             @unique
+  apiResponse      Json?
+  webhookStatus    String?
   statusMessageKey String?
-  status        WhatsAppStatus      @default(PENDING)
-  sentAt        DateTime?
-  deliveredAt   DateTime?
-  readAt        DateTime?
-  failedAt      DateTime?
-  errorMessage  String?
-  createdAt     DateTime            @default(now())
-  updatedAt     DateTime            @updatedAt
-  customer      Customer?           @relation(fields: [customerId], references: [id], onDelete: SetNull)
-  jobCard       JobCard?            @relation(fields: [jobCardId], references: [id], onDelete: SetNull)
-  estimate      Estimate?           @relation(fields: [estimateId], references: [id], onDelete: SetNull)
-  invoice       Invoice?            @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  status           WhatsAppStatus      @default(PENDING)
+  sentAt           DateTime?
+  deliveredAt      DateTime?
+  readAt           DateTime?
+  failedAt         DateTime?
+  errorMessage     String?
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  customer         Customer?           @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  jobCard          JobCard?            @relation(fields: [jobCardId], references: [id], onDelete: SetNull)
+  estimate         Estimate?           @relation(fields: [estimateId], references: [id], onDelete: SetNull)
+  invoice          Invoice?            @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
 
   @@index([mobileNumber])
   @@index([apiMessageId])

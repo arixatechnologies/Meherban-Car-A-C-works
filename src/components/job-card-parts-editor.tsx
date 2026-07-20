@@ -1,15 +1,20 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Plus, Trash2 } from "lucide-react";
+import { useMemo, useState } from "react";
 import { paymentModes } from "@/lib/constants";
+import { resolveInspectionItemShortcut } from "@/lib/inspection-shortcuts";
 import { label } from "@/lib/utils";
 
 type Decimalish = number | string | { toString(): string } | null | undefined;
+
+type RowCategory = "PARTS" | "LABOUR";
 
 type InitialObservation = {
   id?: string;
   partService: string;
   description: string | null;
+  category?: string | null;
   quantity: Decimalish;
   unitPrice: Decimalish;
   amount: Decimalish;
@@ -17,6 +22,7 @@ type InitialObservation = {
 
 type ObservationRow = {
   key: string;
+  category: RowCategory;
   partService: string;
   description: string;
   quantity: string;
@@ -24,15 +30,16 @@ type ObservationRow = {
   amount: string;
 };
 
-type DraftPayload = {
-  fields?: Record<string, string | string[]>;
-};
-
 const inputClass =
   "h-10 w-full rounded-md border-[1.5px] border-[#e3c0c9] bg-white px-2 text-sm text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-[#8b0f2f] focus:ring-4 focus:ring-[#8b0f2f]/10";
 
-const blankRow = (): ObservationRow => ({
+function normalizeCategory(category: string | null | undefined): RowCategory {
+  return category === "LABOUR" || category === "SERVICE" ? "LABOUR" : "PARTS";
+}
+
+const blankRow = (category: RowCategory): ObservationRow => ({
   key: crypto.randomUUID(),
+  category,
   partService: "",
   description: "",
   quantity: "",
@@ -54,10 +61,22 @@ function moneyInput(value: number) {
   return value ? value.toFixed(2) : "";
 }
 
+function money(value: number) {
+  return new Intl.NumberFormat("en-IN", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(Number.isFinite(value) ? value : 0);
+}
+
+function labourUnitPriceValue(row: ObservationRow) {
+  return row.amount || row.unitPrice || "";
+}
+
 function makeInitialRows(observations: InitialObservation[] | undefined) {
   if (observations?.length) {
     return observations.map((observation) => ({
       key: observation.id ?? crypto.randomUUID(),
+      category: normalizeCategory(observation.category),
       partService: observation.partService,
       description: observation.description ?? "",
       quantity: toInputValue(observation.quantity),
@@ -69,76 +88,36 @@ function makeInitialRows(observations: InitialObservation[] | undefined) {
   return [];
 }
 
-function draftArray(fields: DraftPayload["fields"], name: string) {
-  const value = fields?.[name];
-  if (Array.isArray(value)) return value;
-  return value ? [value] : [];
-}
-
-function rowsFromDraft(draftKey: string) {
-  try {
-    const draft = JSON.parse(window.localStorage.getItem(draftKey) || "{}") as DraftPayload;
-    const partServices = draftArray(draft.fields, "observationPartService");
-    const descriptions = draftArray(draft.fields, "observationDescription");
-    const quantities = draftArray(draft.fields, "observationQuantity");
-    const unitPrices = draftArray(draft.fields, "observationUnitPrice");
-    const amounts = draftArray(draft.fields, "observationAmount");
-    const rowCount = Math.max(partServices.length, descriptions.length, quantities.length, unitPrices.length, amounts.length);
-
-    return Array.from({ length: rowCount }, (_, index) => ({
-      key: crypto.randomUUID(),
-      partService: partServices[index] ?? "",
-      description: descriptions[index] ?? "",
-      quantity: quantities[index] ?? "",
-      unitPrice: unitPrices[index] ?? "",
-      amount: amounts[index] ?? "",
-    })).filter((row) => row.partService || row.description || row.quantity || row.unitPrice || row.amount);
-  } catch {
-    return [];
-  }
-}
-
 export function JobCardPartsEditor({
   observations,
   totalAmount,
   advanceAmount,
   balanceDue,
   paymentMode,
-  draftKey,
 }: {
   observations?: InitialObservation[];
   totalAmount?: Decimalish;
   advanceAmount?: Decimalish;
   balanceDue?: Decimalish;
   paymentMode?: string | null;
-  draftKey?: string;
 }) {
   const [rows, setRows] = useState<ObservationRow[]>(() => makeInitialRows(observations));
   const [advance, setAdvance] = useState(() => toInputValue(advanceAmount));
 
-  useEffect(() => {
-    if (!draftKey || observations?.length) return;
-
-    const draftRows = rowsFromDraft(draftKey);
-    if (draftRows.length) {
-      window.setTimeout(() => setRows(draftRows), 0);
-    }
-
-    try {
-      const draft = JSON.parse(window.localStorage.getItem(draftKey) || "{}") as DraftPayload;
-      const draftAdvance = draft.fields?.advanceAmount;
-      if (typeof draftAdvance === "string") {
-        window.setTimeout(() => setAdvance(draftAdvance), 0);
-      }
-    } catch {
-      // Draft restore is best-effort only.
-    }
-  }, [draftKey, observations?.length]);
-
-  const rowsTotal = useMemo(
-    () => rows.reduce((sum, row) => sum + toNumber(row.amount), 0),
+  const totals = useMemo(
+    () =>
+      rows.reduce(
+        (result, row) => {
+          const amount = toNumber(row.amount);
+          if (row.category === "PARTS") result.parts += amount;
+          if (row.category === "LABOUR") result.labour += amount;
+          return result;
+        },
+        { parts: 0, labour: 0 },
+      ),
     [rows],
   );
+  const rowsTotal = totals.parts + totals.labour;
   const savedTotal = toInputValue(totalAmount);
   const totalValue = rows.length ? moneyInput(rowsTotal) : savedTotal;
   const balanceValue = useMemo(() => {
@@ -146,11 +125,18 @@ export function JobCardPartsEditor({
     if (submittedBalance && !rows.length && !totalValue) return submittedBalance;
     return Math.max(toNumber(totalValue) - toNumber(advance), 0).toFixed(2);
   }, [advance, balanceDue, rows.length, totalValue]);
+  const returnValue = useMemo(
+    () => Math.max(toNumber(advance) - toNumber(totalValue), 0).toFixed(2),
+    [advance, totalValue],
+  );
+  const hasReturnValue = toNumber(returnValue) > 0;
+  const settlementLabel = hasReturnValue ? "Return Amount" : "Balance Due";
+  const settlementValue = hasReturnValue ? returnValue : balanceValue;
 
-  function updateRow(index: number, field: keyof ObservationRow, value: string) {
+  function updateRow(key: string, field: keyof ObservationRow, value: string) {
     setRows((currentRows) =>
-      currentRows.map((row, rowIndex) => {
-        if (rowIndex !== index) return row;
+      currentRows.map((row) => {
+        if (row.key !== key) return row;
 
         const nextRow = { ...row, [field]: value };
         if (field === "quantity" || field === "unitPrice") {
@@ -163,69 +149,87 @@ export function JobCardPartsEditor({
     );
   }
 
-  function addRow() {
-    setRows((currentRows) => [...currentRows, blankRow()]);
+  function addRow(category: RowCategory) {
+    setRows((currentRows) => [...currentRows, blankRow(category)]);
   }
 
-  function removeRow(index: number) {
-    setRows((currentRows) => currentRows.filter((_, rowIndex) => rowIndex !== index));
+  function removeRow(key: string) {
+    setRows((currentRows) => currentRows.filter((row) => row.key !== key));
   }
 
-  return (
-    <>
-      <section className="mt-4 overflow-hidden rounded-lg border-[1.5px] border-[#d9a5b3] bg-white">
+  function observationSection(category: RowCategory, title: string, emptyText: string) {
+    const sectionRows = rows.filter((row) => row.category === category);
+    const sectionTotal = category === "PARTS" ? totals.parts : totals.labour;
+    const isLabour = category === "LABOUR";
+    const emptyColSpan = isLabour ? 5 : 7;
+    const totalColSpan = isLabour ? 3 : 5;
+
+    return (
+      <section className="overflow-hidden rounded-lg border-[1.5px] border-[#d9a5b3] bg-white">
         <div className="inline-flex min-h-10 items-center rounded-br-md bg-[#8b0f2f] px-4 text-sm font-black uppercase tracking-wide text-white">
-          Spare Parts / Service Observation
+          {title}
         </div>
-
-        <div className="p-4">
-          <div className="overflow-x-auto">
-            <table className="min-w-[860px] w-full border-collapse text-sm">
-              <thead>
-                <tr className="bg-[#fff3f6] text-[#650820]">
-                  <th className="border border-[#ead0d7] px-2 py-2 uppercase">Sr. No.</th>
-                  <th className="border border-[#ead0d7] px-2 py-2 uppercase">Part / Service</th>
-                  <th className="border border-[#ead0d7] px-2 py-2 uppercase">Description</th>
-                  <th className="border border-[#ead0d7] px-2 py-2 uppercase">Qty.</th>
-                  <th className="border border-[#ead0d7] px-2 py-2 uppercase">Unit Price {"\u20B9"}</th>
-                  <th className="border border-[#ead0d7] px-2 py-2 uppercase">Amount {"\u20B9"}</th>
-                  <th className="border border-[#ead0d7] px-2 py-2 uppercase">Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.length === 0 ? (
-                  <tr>
-                    <td className="border border-[#ead0d7] px-3 py-5 text-center text-sm font-semibold text-slate-500" colSpan={7}>
-                      Click + Add Part / Service to enter items.
-                    </td>
-                  </tr>
+        <div className="overflow-x-auto p-4">
+          <table className={`w-full ${isLabour ? "min-w-[700px]" : "min-w-[920px]"} border-collapse text-sm`}>
+            <thead>
+              <tr className="bg-[#fff3f6] text-[#650820]">
+                <th className="border border-[#ead0d7] px-2 py-2 uppercase">Sr. No.</th>
+                <th className="border border-[#ead0d7] px-2 py-2 uppercase">Part / Service</th>
+                <th className="border border-[#ead0d7] px-2 py-2 uppercase">Description</th>
+                {!isLabour ? (
+                  <>
+                    <th className="border border-[#ead0d7] px-2 py-2 uppercase">Qty.</th>
+                    <th className="border border-[#ead0d7] px-2 py-2 uppercase">Unit Price {"\u20B9"}</th>
+                  </>
                 ) : null}
-                {rows.map((row, index) => (
-                    <tr key={row.key}>
-                      <td className="border border-[#ead0d7] px-2 py-2 text-center font-semibold">{index + 1}</td>
-                      <td className="border border-[#ead0d7] px-2 py-2">
-                        <input
-                          name="observationPartService"
-                          value={row.partService}
-                          onChange={(event) => updateRow(index, "partService", event.target.value)}
-                          className={inputClass}
-                        />
-                      </td>
-                      <td className="border border-[#ead0d7] px-2 py-2">
-                        <input
-                          name="observationDescription"
-                          value={row.description}
-                          onChange={(event) => updateRow(index, "description", event.target.value)}
-                          className={inputClass}
-                        />
-                      </td>
+                <th className="border border-[#ead0d7] px-2 py-2 uppercase">Amount {"\u20B9"}</th>
+                <th className="border border-[#ead0d7] px-2 py-2 uppercase">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sectionRows.length === 0 ? (
+                <tr>
+                  <td className="border border-[#ead0d7] px-3 py-5 text-center text-sm font-semibold text-slate-500" colSpan={emptyColSpan}>
+                    {emptyText}
+                  </td>
+                </tr>
+              ) : null}
+              {sectionRows.map((row, index) => (
+                <tr key={row.key}>
+                  <td className="border border-[#ead0d7] px-2 py-2 text-center font-semibold">{index + 1}</td>
+                  <td className="border border-[#ead0d7] px-2 py-2">
+                    <input type="hidden" name="observationCategory" value={row.category} />
+                    {isLabour ? (
+                      <>
+                        <input type="hidden" name="observationQuantity" value="1" readOnly />
+                        <input type="hidden" name="observationUnitPrice" value={labourUnitPriceValue(row)} readOnly />
+                      </>
+                    ) : null}
+                    <input
+                      name="observationPartService"
+                      value={row.partService}
+                      onChange={(event) => updateRow(row.key, "partService", event.target.value)}
+                      onBlur={(event) => updateRow(row.key, "partService", resolveInspectionItemShortcut(event.target.value))}
+                      className={inputClass}
+                    />
+                  </td>
+                  <td className="border border-[#ead0d7] px-2 py-2">
+                    <input
+                      name="observationDescription"
+                      value={row.description}
+                      onChange={(event) => updateRow(row.key, "description", event.target.value)}
+                      className={inputClass}
+                    />
+                  </td>
+                  {!isLabour ? (
+                    <>
                       <td className="border border-[#ead0d7] px-2 py-2">
                         <input
                           name="observationQuantity"
                           type="text"
                           inputMode="decimal"
                           value={row.quantity}
-                          onChange={(event) => updateRow(index, "quantity", event.target.value)}
+                          onChange={(event) => updateRow(row.key, "quantity", event.target.value)}
                           className={inputClass}
                         />
                       </td>
@@ -235,56 +239,85 @@ export function JobCardPartsEditor({
                           type="text"
                           inputMode="decimal"
                           value={row.unitPrice}
-                          onChange={(event) => updateRow(index, "unitPrice", event.target.value)}
+                          onChange={(event) => updateRow(row.key, "unitPrice", event.target.value)}
                           className={inputClass}
                         />
                       </td>
-                      <td className="border border-[#ead0d7] px-2 py-2">
-                        <input
-                          name="observationAmount"
-                          type="number"
-                          step="0.01"
-                          value={row.amount}
-                          onChange={(event) => updateRow(index, "amount", event.target.value)}
-                          className={inputClass}
-                        />
-                      </td>
-                      <td className="border border-[#ead0d7] px-2 py-2 text-center">
-                        <button
-                          type="button"
-                          onClick={() => removeRow(index)}
-                          className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#ffe5ec] text-xl font-black leading-none text-[#650820] transition hover:bg-[#8b0f2f] hover:text-white"
-                          title="Remove row"
-                          aria-label="Remove row"
-                        >
-                          {"\u00d7"}
-                        </button>
-                      </td>
-                    </tr>
-                ))}
-              </tbody>
-              <tfoot>
-                <tr className="bg-[#fff3f6] font-black text-[#650820]">
-                  <td className="border border-[#ead0d7] px-3 py-2 text-right uppercase" colSpan={5}>
-                    Total {"\u20B9"}
-                  </td>
+                    </>
+                  ) : null}
                   <td className="border border-[#ead0d7] px-2 py-2">
-                    <input readOnly value={moneyInput(rowsTotal)} className={inputClass} />
+                    <input
+                      name="observationAmount"
+                      type="text"
+                      inputMode="decimal"
+                      value={row.amount}
+                      onChange={(event) => updateRow(row.key, "amount", event.target.value)}
+                      className={inputClass}
+                    />
                   </td>
-                  <td className="border border-[#ead0d7]" />
+                  <td className="border border-[#ead0d7] px-2 py-2 text-center">
+                    <button
+                      type="button"
+                      onClick={() => removeRow(row.key)}
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#ffe5ec] text-[#650820] transition hover:bg-[#8b0f2f] hover:text-white"
+                      title="Remove row"
+                      aria-label={`Remove ${title} row`}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </td>
                 </tr>
-              </tfoot>
-            </table>
-          </div>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr className="bg-[#fff3f6] font-black text-[#650820]">
+                <td className="border border-[#ead0d7] px-3 py-2 text-right uppercase" colSpan={totalColSpan}>
+                  Total {"\u20B9"}
+                </td>
+                <td className="border border-[#ead0d7] px-2 py-2 text-right tabular-nums">{money(sectionTotal)}</td>
+                <td className="border border-[#ead0d7]" />
+              </tr>
+            </tfoot>
+          </table>
 
           <div className="mt-3 flex justify-start">
             <button
               type="button"
-              onClick={addRow}
-              className="rounded-md bg-[#8b0f2f] px-4 py-2.5 text-sm font-black text-white transition hover:bg-[#650820]"
+              onClick={() => addRow(category)}
+              className="inline-flex h-10 items-center gap-2 rounded-md bg-[#8b0f2f] px-4 text-sm font-black text-white transition hover:bg-[#650820]"
             >
-              + Add Part / Service
+              <Plus className="h-4 w-4" />
+              Add {category === "PARTS" ? "Part / Material" : "Labour / Service"}
             </button>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <>
+      <section className="mt-4 overflow-hidden rounded-lg border-[1.5px] border-[#d9a5b3] bg-white">
+        <div className="inline-flex min-h-10 items-center rounded-br-md bg-[#8b0f2f] px-4 text-sm font-black uppercase tracking-wide text-white">
+          Spare Parts / Service Observation
+        </div>
+
+        <div className="grid gap-4 p-4">
+          {observationSection("PARTS", "Parts / Materials", "Click Add Part / Material to enter items.")}
+          {observationSection("LABOUR", "Labour / Services", "Click Add Labour / Service to enter items.")}
+          <div className="ml-auto grid w-full max-w-sm gap-2 rounded-lg border-[1.5px] border-[#d9a5b3] bg-[#fff3f6] p-4 text-sm font-bold text-[#650820]">
+            <div className="flex justify-between gap-4">
+              <span>Parts Total</span>
+              <strong className="whitespace-nowrap tabular-nums">{money(totals.parts)}</strong>
+            </div>
+            <div className="flex justify-between gap-4">
+              <span>Labour Total</span>
+              <strong className="whitespace-nowrap tabular-nums">{money(totals.labour)}</strong>
+            </div>
+            <div className="flex justify-between gap-4 border-t border-[#d9a5b3] pt-2 text-base">
+              <span>Grand Total</span>
+              <strong className="whitespace-nowrap tabular-nums">{money(rowsTotal)}</strong>
+            </div>
           </div>
         </div>
       </section>
@@ -299,8 +332,8 @@ export function JobCardPartsEditor({
             <span>Total Amount {"\u20B9"}</span>
             <input
               name="estimatedTotalAmount"
-              type="number"
-              step="0.01"
+              type="text"
+              inputMode="decimal"
               readOnly
               value={totalValue}
               className={inputClass}
@@ -329,8 +362,8 @@ export function JobCardPartsEditor({
             />
           </label>
           <label className="grid gap-2 text-sm font-bold text-slate-950">
-            <span>Balance Due {"\u20B9"}</span>
-            <input name="balanceDue" type="number" step="0.01" readOnly value={balanceValue} className={inputClass} />
+            <span>{settlementLabel} {"\u20B9"}</span>
+            <input name="balanceDue" type="text" readOnly value={settlementValue} className={inputClass} />
           </label>
         </div>
       </section>

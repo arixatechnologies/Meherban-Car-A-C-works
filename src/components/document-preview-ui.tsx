@@ -1,6 +1,7 @@
 import { Award, Check, Clock, MapPin, Phone, Settings, Snowflake, UserCog } from "lucide-react";
 import Image from "next/image";
 import type { ReactNode } from "react";
+import { vehicleMakeModel } from "@/lib/utils";
 
 type Decimalish = number | string | { toString(): string } | null | undefined;
 
@@ -32,12 +33,20 @@ export function splitNotes(value: string | null | undefined) {
     .filter(Boolean);
 }
 
-export function InfoRow({ labelText, value }: { labelText: string; value: ReactNode }) {
+export function InfoRow({
+  labelText,
+  value,
+  valueClassName = "",
+}: {
+  labelText: string;
+  value: ReactNode;
+  valueClassName?: string;
+}) {
   return (
     <div className="grid min-w-0 grid-cols-[136px_10px_minmax(0,1fr)] gap-2 text-[13px] leading-6">
       <dt className="font-bold text-slate-950">{labelText}</dt>
       <dd className="font-bold text-slate-700">:</dd>
-      <dd className="min-w-0 break-words text-slate-950">{value || "-"}</dd>
+      <dd className={`min-w-0 break-words text-slate-950 ${valueClassName}`}>{value || "-"}</dd>
     </div>
   );
 }
@@ -182,7 +191,7 @@ export function CustomerVehicleBlocks({
         <dl className="grid gap-x-6 gap-y-1 md:grid-cols-2">
           <InfoRow labelText="Reg Number" value={vehicle.vehicleNumber} />
           <InfoRow labelText="Fuel Type" value={vehicle.fuelType} />
-          <InfoRow labelText="Car Make / Model" value={`${vehicle.brand} ${vehicle.model}`} />
+          <InfoRow labelText="Car Make / Model" value={vehicleMakeModel(vehicle.brand, vehicle.model)} />
           <InfoRow labelText="Gear Type" value={vehicle.variant || "-"} />
           <InfoRow labelText="Year" value={vehicle.year ?? "-"} />
           <InfoRow labelText="Delivery Date" value={deliveryDate} />

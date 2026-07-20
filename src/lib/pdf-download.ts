@@ -28,14 +28,30 @@ const chromeCandidates = [
 ].filter(Boolean) as string[];
 
 function chromeExecutablePath() {
-  const executablePath = chromeCandidates.find((candidate) => fs.existsSync(candidate));
-  if (!executablePath) {
-    throw new Error(
-      "Chrome/Chromium was not found. Install Chromium on the server or set CHROME_EXECUTABLE_PATH.",
-    );
+  return chromeCandidates.find((candidate) => fs.existsSync(candidate));
+}
+
+async function chromeLaunchOptions() {
+  const executablePath = chromeExecutablePath();
+  const baseArgs = [
+    "--no-sandbox",
+    "--disable-setuid-sandbox",
+    "--disable-dev-shm-usage",
+    "--font-render-hinting=none",
+  ];
+
+  if (executablePath) {
+    return {
+      executablePath,
+      args: baseArgs,
+    };
   }
 
-  return executablePath;
+  const chromium = (await import("@sparticuz/chromium")).default;
+  return {
+    executablePath: await chromium.executablePath(),
+    args: Array.from(new Set([...chromium.args, ...baseArgs])),
+  };
 }
 
 export function safePdfFilename(value: string) {
@@ -49,15 +65,11 @@ export function safePdfFilename(value: string) {
 
 export async function renderPdfFromUrl(url: string, cookieHeader?: string | null) {
   const puppeteer = await import("puppeteer-core");
+  const launchOptions = await chromeLaunchOptions();
   const browser = await puppeteer.launch({
-    executablePath: chromeExecutablePath(),
+    executablePath: launchOptions.executablePath,
     headless: true,
-    args: [
-      "--no-sandbox",
-      "--disable-setuid-sandbox",
-      "--disable-dev-shm-usage",
-      "--font-render-hinting=none",
-    ],
+    args: launchOptions.args,
   });
 
   try {

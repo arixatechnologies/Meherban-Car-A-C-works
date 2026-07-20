@@ -2,6 +2,7 @@
 
 import { Plus, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
+import { resolveInspectionItemShortcut } from "@/lib/inspection-shortcuts";
 
 type Decimalish = number | string | { toString(): string } | null | undefined;
 
@@ -51,6 +52,10 @@ function money(value: number) {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(Number.isFinite(value) ? value : 0);
+}
+
+function labourUnitPriceValue(row: Row) {
+  return row.amount || row.unitPrice || "";
 }
 
 function normalizeCategory(category: string): Row["category"] {
@@ -138,7 +143,10 @@ export function LineItemsEditor({
 
   function section(category: Row["category"], title: string, empty: string) {
     const sectionRows = rows.filter((row) => row.category === category);
-    const amountColSpan = 5;
+    const isLabour = category === "LABOUR";
+    const amountColSpan = isLabour ? 3 : 5;
+    const emptyColSpan = isLabour ? (showRemarks ? 6 : 5) : showRemarks ? 8 : 7;
+    const trailingFooterColSpan = isLabour ? (showRemarks ? 2 : 1) : showRemarks ? 2 : 1;
 
     return (
       <section className="overflow-hidden rounded-lg border-[1.5px] border-[#d9a5b3] bg-white">
@@ -146,14 +154,18 @@ export function LineItemsEditor({
           {title}
         </div>
         <div className="overflow-x-auto p-4">
-          <table className="w-full min-w-[920px] border-collapse text-sm">
+          <table className={`w-full ${isLabour ? "min-w-[700px]" : "min-w-[920px]"} border-collapse text-sm`}>
             <thead>
               <tr className="bg-[#fff3f6] text-[#650820]">
                 <th className="border border-[#ead0d7] px-2 py-2 uppercase">Sr. No.</th>
                 <th className="border border-[#ead0d7] px-2 py-2 uppercase">Part / Service</th>
                 <th className="border border-[#ead0d7] px-2 py-2 uppercase">Description</th>
-                <th className="border border-[#ead0d7] px-2 py-2 uppercase">Qty.</th>
-                <th className="border border-[#ead0d7] px-2 py-2 uppercase">Unit Price</th>
+                {!isLabour ? (
+                  <>
+                    <th className="border border-[#ead0d7] px-2 py-2 uppercase">Qty.</th>
+                    <th className="border border-[#ead0d7] px-2 py-2 uppercase">Unit Price</th>
+                  </>
+                ) : null}
                 <th className="border border-[#ead0d7] px-2 py-2 uppercase">Amount</th>
                 {showRemarks ? <th className="border border-[#ead0d7] px-2 py-2 uppercase">Remarks</th> : null}
                 <th className="border border-[#ead0d7] px-2 py-2 uppercase">Action</th>
@@ -167,10 +179,17 @@ export function LineItemsEditor({
                       <td className="border border-[#ead0d7] px-2 py-2 text-center font-semibold">{index + 1}</td>
                       <td className="border border-[#ead0d7] px-2 py-2">
                         <input type="hidden" name="itemCategory" value={row.category === "PARTS" ? "PARTS" : "LABOUR"} />
+                        {isLabour ? (
+                          <>
+                            <input type="hidden" name="itemQuantity" value="1" readOnly />
+                            <input type="hidden" name="itemUnitPrice" value={labourUnitPriceValue(row)} readOnly />
+                          </>
+                        ) : null}
                         <input
                           name="itemPartService"
                           value={row.partService}
                           onChange={(event) => updateRow(row.id, "partService", event.target.value)}
+                          onBlur={(event) => updateRow(row.id, "partService", resolveInspectionItemShortcut(event.target.value))}
                           className={inputClass}
                         />
                       </td>
@@ -182,24 +201,28 @@ export function LineItemsEditor({
                           className={inputClass}
                         />
                       </td>
-                      <td className="border border-[#ead0d7] px-2 py-2">
-                        <input
-                          name="itemQuantity"
-                          value={row.quantity}
-                          onChange={(event) => updateRow(row.id, "quantity", event.target.value)}
-                          className={inputClass}
-                        />
-                      </td>
-                      <td className="border border-[#ead0d7] px-2 py-2">
-                        <input
-                          name="itemUnitPrice"
-                          type="text"
-                          inputMode="decimal"
-                          value={row.unitPrice}
-                          onChange={(event) => updateRow(row.id, "unitPrice", event.target.value)}
-                          className={inputClass}
-                        />
-                      </td>
+                      {!isLabour ? (
+                        <>
+                          <td className="border border-[#ead0d7] px-2 py-2">
+                            <input
+                              name="itemQuantity"
+                              value={row.quantity}
+                              onChange={(event) => updateRow(row.id, "quantity", event.target.value)}
+                              className={inputClass}
+                            />
+                          </td>
+                          <td className="border border-[#ead0d7] px-2 py-2">
+                            <input
+                              name="itemUnitPrice"
+                              type="text"
+                              inputMode="decimal"
+                              value={row.unitPrice}
+                              onChange={(event) => updateRow(row.id, "unitPrice", event.target.value)}
+                              className={inputClass}
+                            />
+                          </td>
+                        </>
+                      ) : null}
                       <td className="border border-[#ead0d7] px-2 py-2">
                         <input
                           name="itemAmount"
@@ -236,7 +259,7 @@ export function LineItemsEditor({
                 })
               ) : (
                 <tr>
-                  <td className="border border-[#ead0d7] px-3 py-5 text-center text-sm font-semibold text-slate-500" colSpan={showRemarks ? 8 : 7}>
+                  <td className="border border-[#ead0d7] px-3 py-5 text-center text-sm font-semibold text-slate-500" colSpan={emptyColSpan}>
                     {empty}
                   </td>
                 </tr>
@@ -248,7 +271,7 @@ export function LineItemsEditor({
                   Total
                 </td>
                 <td className="border border-[#ead0d7] px-3 py-2 text-right">{money(category === "PARTS" ? totals.parts : totals.labour)}</td>
-                <td className="border border-[#ead0d7]" colSpan={showRemarks ? 2 : 1} />
+                <td className="border border-[#ead0d7]" colSpan={trailingFooterColSpan} />
               </tr>
             </tfoot>
           </table>

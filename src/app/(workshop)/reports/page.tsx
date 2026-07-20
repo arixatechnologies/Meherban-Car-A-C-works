@@ -132,8 +132,8 @@ export default async function ReportsPage({
     pendingJobs,
     dailyCollection,
     monthlyRevenue,
+    overallRevenue,
     pendingPayments,
-    estimateGroups,
     customerBilling,
     vehicleHistory,
     revenueTrendInvoices,
@@ -150,10 +150,12 @@ export default async function ReportsPage({
         where: { invoiceDate: { gte: from, lte: to } },
       }),
       prisma.invoice.aggregate({
+        _sum: { totalAmount: true },
+      }),
+      prisma.invoice.aggregate({
         _sum: { balanceAmount: true },
         where: { paymentStatus: { in: ["UNPAID", "PARTIALLY_PAID"] } },
       }),
-      prisma.estimate.groupBy({ by: ["status"], _count: { status: true } }),
       prisma.customer.findMany({
         where: {
           OR: [{ invoices: { some: {} } }, { payments: { some: {} } }],
@@ -230,8 +232,8 @@ export default async function ReportsPage({
         <StatCard label="Pending Jobs" value={pendingJobs} />
         <StatCard label="Daily Collection" value={formatMoney(dailyCollection._sum.amount)} />
         <StatCard label="Monthly Revenue" value={formatMoney(monthlyRevenue._sum.totalAmount)} />
+        <StatCard label="Over All Revenue" value={formatMoney(overallRevenue._sum.totalAmount)} />
         <StatCard label="Pending Payments" value={formatMoney(pendingPayments._sum.balanceAmount)} />
-        <StatCard label="Estimate Approvals" value={estimateGroups.find((item) => item.status === "APPROVED")?._count.status ?? 0} />
       </div>
       <div className="grid gap-6 xl:grid-cols-2">
         <RevenueBarChart title="Monthly Revenue Graph" points={monthlyRevenuePoints} empty="No invoice revenue found for the selected dates." />

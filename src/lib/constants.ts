@@ -14,7 +14,8 @@ export const complaintOptions = [
 export const inspectionItemNames = [
   "Compressor",
   "Condenser",
-  "Cooling Coil",
+  "Front Cooling Coil",
+  "Rare Cooling Coil",
   "Blower",
   "Cabin Filter",
   "Gas Level",
@@ -34,6 +35,7 @@ export const inspectionItemNames = [
   "Pipe Lines",
   "Pressure Switch",
   "Clutch Assembly",
+  "Other",
 ] as const;
 
 export const jobCardStatuses = [

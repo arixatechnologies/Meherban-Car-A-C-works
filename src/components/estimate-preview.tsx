@@ -105,6 +105,7 @@ export async function EstimatePreview({ id }: { id: string }) {
                   </tr>
                   {group.items.map((item) => {
                     rowNumber += 1;
+                    const isLabour = item.category === ItemCategory.SERVICE || item.category === ItemCategory.LABOUR;
                     return (
                       <tr key={item.id}>
                         <td className="border border-[#ead0d8] px-2 py-1.5 text-center">{rowNumber}</td>
@@ -112,9 +113,9 @@ export async function EstimatePreview({ id }: { id: string }) {
                         <td className="border border-[#ead0d8] px-2 py-1.5">
                           {item.partService ? item.description : item.category === ItemCategory.PARTS ? "Parts / Materials" : "Labour / Service"}
                         </td>
-                        <td className="border border-[#ead0d8] px-2 py-1.5 text-center">{item.quantity.toString()}</td>
-                        <td className="border border-[#ead0d8] px-2 py-1.5 text-right">{moneyText(item.unitPrice)}</td>
-                        <td className="border border-[#ead0d8] px-2 py-1.5 text-right">{moneyText(item.amount)}</td>
+                        <td className="border border-[#ead0d8] px-2 py-1.5 text-center">{isLabour ? "-" : item.quantity.toString()}</td>
+                        <td className="whitespace-nowrap border border-[#ead0d8] px-2 py-1.5 text-right tabular-nums">{isLabour ? "-" : moneyText(item.unitPrice)}</td>
+                        <td className="whitespace-nowrap border border-[#ead0d8] px-2 py-1.5 text-right tabular-nums">{moneyText(item.amount)}</td>
                       </tr>
                     );
                   })}
@@ -133,25 +134,25 @@ export async function EstimatePreview({ id }: { id: string }) {
             <tr>
               <td className="border border-[#ead0d8] px-2 py-2" colSpan={3} rowSpan={hasDiscount ? 5 : 4} />
               <td className="border border-[#ead0d8] px-3 py-1.5 text-right font-bold text-[#7a0d2b]" colSpan={2}>Total Parts Amount (₹)</td>
-              <td className="border border-[#ead0d8] px-3 py-1.5 text-right">{moneyText(partsTotal)}</td>
+              <td className="whitespace-nowrap border border-[#ead0d8] px-3 py-1.5 text-right tabular-nums">{moneyText(partsTotal)}</td>
             </tr>
             <tr>
               <td className="border border-[#ead0d8] px-3 py-1.5 text-right font-bold text-[#7a0d2b]" colSpan={2}>Total Labour Amount (₹)</td>
-              <td className="border border-[#ead0d8] px-3 py-1.5 text-right">{moneyText(labourTotal)}</td>
+              <td className="whitespace-nowrap border border-[#ead0d8] px-3 py-1.5 text-right tabular-nums">{moneyText(labourTotal)}</td>
             </tr>
             <tr>
               <td className="border border-[#ead0d8] px-3 py-1.5 text-right font-bold text-[#7a0d2b]" colSpan={2}>Sub Total (₹)</td>
-              <td className="border border-[#ead0d8] px-3 py-1.5 text-right">{moneyText(partsTotal + labourTotal)}</td>
+              <td className="whitespace-nowrap border border-[#ead0d8] px-3 py-1.5 text-right tabular-nums">{moneyText(partsTotal + labourTotal)}</td>
             </tr>
             {hasDiscount ? (
               <tr>
                 <td className="border border-[#ead0d8] px-3 py-1.5 text-right font-bold text-[#7a0d2b]" colSpan={2}>Discount (₹)</td>
-                <td className="border border-[#ead0d8] px-3 py-1.5 text-right">- {moneyText(estimate.discount)}</td>
+                <td className="whitespace-nowrap border border-[#ead0d8] px-3 py-1.5 text-right tabular-nums">- {moneyText(estimate.discount)}</td>
               </tr>
             ) : null}
             <tr className={`${maroon} text-base font-black text-white`}>
               <td className="border border-[#ead0d8] px-3 py-2 text-right uppercase" colSpan={2}>Grand Total (₹)</td>
-              <td className="border border-[#ead0d8] px-3 py-2 text-right">{moneyText(estimate.totalAmount)}</td>
+              <td className="whitespace-nowrap border border-[#ead0d8] px-3 py-2 text-right tabular-nums">{moneyText(estimate.totalAmount)}</td>
             </tr>
           </tfoot>
         </table>

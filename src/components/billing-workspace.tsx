@@ -92,7 +92,6 @@ function statusFallbackLinks({
   const latestInvoice = jobCard.invoices[0];
   const problemSummary =
     jobCard.problemFound ||
-    jobCard.workSuggested ||
     jobCard.customComplaint ||
     jobCard.complaints.join(", ") ||
     undefined;

@@ -4,6 +4,7 @@ import { Badge, Button, Card, CardBody, CardHeader, DataTable, DetailGrid, Detai
 import { approveEstimateFromTracking } from "@/lib/actions";
 import { prisma } from "@/lib/db";
 import { formatDateTime, formatMoney } from "@/lib/format";
+import { vehicleMakeModel } from "@/lib/utils";
 import { createWhatsAppLink } from "@/lib/whatsapp";
 
 export const dynamic = "force-dynamic";
@@ -35,6 +36,19 @@ export default async function TrackingPage({
   const invoice = jobCard.invoices[0];
   const workshopPhone = setting?.phoneNumber || "7287948037";
   const whatsappNumber = setting?.whatsappNumber || workshopPhone;
+  const invoiceReturnAmount = invoice ? Math.max(Number(invoice.paidAmount) - Number(invoice.totalAmount), 0) : 0;
+  const estimateReturnAmount = estimate ? Math.max(Number(estimate.advanceReceived) - Number(estimate.totalAmount), 0) : 0;
+  const payableLabel =
+    invoiceReturnAmount > 0 || (!invoice && estimateReturnAmount > 0) ? "Return Amount" : "Amount payable";
+  const payableValue = invoice
+    ? formatMoney(invoiceReturnAmount > 0 ? invoiceReturnAmount : invoice.balanceAmount)
+    : estimate
+      ? formatMoney(estimateReturnAmount > 0 ? estimateReturnAmount : estimate.balanceAmount)
+      : "-";
+  const estimateSettlementLabel = estimateReturnAmount > 0 ? "Return Amount" : "Balance";
+  const estimateSettlementValue = estimate
+    ? formatMoney(estimateReturnAmount > 0 ? estimateReturnAmount : estimate.balanceAmount)
+    : "-";
 
   return (
     <main className="min-h-screen bg-[var(--background)]">
@@ -53,13 +67,13 @@ export default async function TrackingPage({
           <CardHeader title="Current Status" />
           <CardBody>
             <DetailGrid>
-              <DetailItem labelText="Vehicle" value={`${jobCard.vehicle.brand} ${jobCard.vehicle.model}`} />
+              <DetailItem labelText="Vehicle" value={vehicleMakeModel(jobCard.vehicle.brand, jobCard.vehicle.model)} />
               <DetailItem labelText="Vehicle number" value={jobCard.vehicle.vehicleNumber} />
               <DetailItem labelText="Customer" value={jobCard.customer.name} />
               <DetailItem labelText="Expected delivery" value={formatDateTime(jobCard.expectedDeliveryAt)} />
               <DetailItem labelText="Estimate status" value={estimate ? <Badge value={estimate.status} /> : "Not created"} />
               <DetailItem labelText="Invoice status" value={invoice ? <Badge value={invoice.paymentStatus} /> : "Not generated"} />
-              <DetailItem labelText="Amount payable" value={invoice ? formatMoney(invoice.balanceAmount) : estimate ? formatMoney(estimate.balanceAmount) : "-"} />
+              <DetailItem labelText={payableLabel} value={payableValue} />
             </DetailGrid>
           </CardBody>
         </Card>
@@ -86,14 +100,14 @@ export default async function TrackingPage({
               <DetailGrid>
                 <DetailItem labelText="Estimate number" value={estimate.estimateNumber} />
                 <DetailItem labelText="Amount" value={formatMoney(estimate.totalAmount)} />
-                <DetailItem labelText="Balance" value={formatMoney(estimate.balanceAmount)} />
+                <DetailItem labelText={estimateSettlementLabel} value={estimateSettlementValue} />
               </DetailGrid>
               <div className="flex flex-wrap gap-2">
                 <form action={approveEstimateFromTracking.bind(null, estimate.id, trackingToken)}>
                   <Button type="submit">Approve Estimate</Button>
                 </form>
                 <Button
-                  href={`/track/${trackingToken}/estimate`}
+                  href={`/track/${trackingToken}/estimate/download`}
                   variant="secondary"
                   className="border-[#f1b8b8] bg-[#fff0f0] text-[#c62828] hover:bg-[#ffe0e0]"
                 >
@@ -111,7 +125,7 @@ export default async function TrackingPage({
             <CardBody>
               <div className="flex flex-wrap gap-2">
                 <Button
-                  href={`/track/${trackingToken}/invoice`}
+                  href={`/track/${trackingToken}/invoice/download`}
                   variant="secondary"
                   className="border-[#f1b8b8] bg-[#fff0f0] text-[#c62828] hover:bg-[#ffe0e0]"
                 >

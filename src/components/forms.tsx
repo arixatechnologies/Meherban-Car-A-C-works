@@ -14,13 +14,13 @@ import {
   sendCustomWhatsApp,
   updateJobCardStatus,
 } from "@/lib/actions";
-import { formatMoney, toDateInput } from "@/lib/format";
+import { formatDateInput, formatMoney, toDateInput } from "@/lib/format";
 import { statusMessageTemplateFields, statusTemplatesFromJson } from "@/lib/status-message-templates";
-import { label } from "@/lib/utils";
+import { label, vehicleMakeModel } from "@/lib/utils";
 import { Field, inputClass, textareaClass } from "@/components/ui";
 import { SubmitButton } from "@/components/submit-button";
-import { JobCardDraftGuard } from "@/components/job-card-draft-guard";
 import { JobCardPartsEditor } from "@/components/job-card-parts-editor";
+import { JobCardValidationGuard } from "@/components/job-card-validation-guard";
 import { LineItemsEditor } from "@/components/line-items-editor";
 import { Fragment, type ReactNode } from "react";
 import Image from "next/image";
@@ -83,6 +83,7 @@ type JobCardOption = {
   serviceObservations?: {
     partService: string;
     description: string | null;
+    category?: string | null;
     quantity: Decimalish;
     unitPrice: Decimalish;
     amount?: Decimalish;
@@ -144,13 +145,6 @@ function displayNumber(value: string | null | undefined) {
   return value;
 }
 
-function splitNotes(value: string | null | undefined) {
-  return (value ?? "")
-    .split(/\r?\n|,/)
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
-
 function documentNumberPreview(jobCardNumber: string | undefined, prefix: string, fallback: string) {
   if (!jobCardNumber) return fallback;
   const parts = jobCardNumber.split("-");
@@ -166,12 +160,18 @@ function categoryForObservation(observation: { partService: string; description:
     : "PARTS";
 }
 
+function observationCategory(observation: { category?: string | null; partService: string; description: string | null }) {
+  if (observation.category === "LABOUR" || observation.category === "SERVICE") return "LABOUR";
+  if (observation.category === "PARTS" || observation.category === "OTHER") return "PARTS";
+  return categoryForObservation(observation);
+}
+
 function observationsToLineItems(observations: JobCardOption["serviceObservations"] | undefined): LineItem[] {
   return (observations ?? []).map((observation) => ({
     partService: observation.partService,
     description: observation.description ?? "",
     remarks: "",
-    category: categoryForObservation(observation),
+    category: observationCategory(observation),
     quantity: valueOf(observation.quantity),
     unitPrice: valueOf(observation.unitPrice),
     amount: "amount" in observation ? valueOf(observation.amount as Decimalish) : undefined,
@@ -209,6 +209,7 @@ function DocumentFormHeader({
   date,
   serviceAdvisor,
   setting,
+  dateFieldName,
 }: {
   title: string;
   infoTitle: string;
@@ -216,6 +217,7 @@ function DocumentFormHeader({
   date: string;
   serviceAdvisor: string;
   setting?: WorkshopSettingOption;
+  dateFieldName?: string;
 }) {
   const workshopName = setting?.workshopName || "Meharban Car A/C Works";
   const tagline = setting?.tagline || "Complete Car A/C Service & Repair Specialist";
@@ -256,7 +258,19 @@ function DocumentFormHeader({
           <h2 className="bg-[#8b0f2f] py-2 text-center text-sm font-black uppercase text-white">{infoTitle}</h2>
           <div className="grid gap-3 p-3">
             <JobCardInfoRow labelText={`${title.includes("Invoice") ? "Invoice" : "Estimate"} No.`}>{readOnlyValue(number)}</JobCardInfoRow>
-            <JobCardInfoRow labelText="Date">{readOnlyValue(date)}</JobCardInfoRow>
+            <JobCardInfoRow labelText="Date">
+              {dateFieldName ? (
+                <input
+                  name={dateFieldName}
+                  defaultValue={date}
+                  placeholder="DD/MM/YYYY"
+                  inputMode="numeric"
+                  className={jobCardInputClass}
+                />
+              ) : (
+                readOnlyValue(date)
+              )}
+            </JobCardInfoRow>
             <JobCardInfoRow labelText="Service Advisor">{readOnlyValue(serviceAdvisor)}</JobCardInfoRow>
           </div>
         </section>
@@ -389,6 +403,7 @@ export function JobCardForm({
       id: string;
       partService: string;
       description: string | null;
+      category?: string | null;
       quantity: Decimalish;
       unitPrice: Decimalish;
       amount: Decimalish;
@@ -405,9 +420,8 @@ export function JobCardForm({
   } | null;
 }) {
   const action = saveJobCard.bind(null, jobCard?.id ?? null);
-  const draftKey = "meharban-job-card-new-draft-v1";
   const now = new Date();
-  const displayDate = toDateInput(jobCard?.dateTime ?? now);
+  const displayDate = formatDateInput(jobCard?.dateTime ?? now);
   const workshopName = setting?.workshopName || "Meharban Car A/C Works";
   const tagline = setting?.tagline || "Complete Car A/C Service & Repair Specialist";
   const phoneNumber = setting?.phoneNumber || setting?.whatsappNumber || "7287948037";
@@ -415,9 +429,10 @@ export function JobCardForm({
     setting?.address ||
     "Pantulugarimeda, Beside Visakha Eye Hospital, Autonagar, Old Gajuwaka, Visakhapatnam - 26";
   const hasExistingRecords = Boolean(jobCard) || customers.length > 0 || vehicles.length > 0;
-  const inspectionRows = Array.from({ length: Math.ceil(inspectionItemNames.length / 2) }).map((_, index) => [
+  const inspectionSplitIndex = Math.ceil(inspectionItemNames.length / 2);
+  const inspectionRows = Array.from({ length: inspectionSplitIndex }).map((_, index) => [
     inspectionItemNames[index],
-    inspectionItemNames[index + Math.ceil(inspectionItemNames.length / 2)],
+    inspectionItemNames[index + inspectionSplitIndex],
   ]);
   const inspectionByName = new Map((jobCard?.inspectionItems ?? []).map((item) => [item.name, item]));
   const selectedCustomer = jobCard?.customer ?? customers.find((customer) => customer.id === jobCard?.customerId);
@@ -427,14 +442,15 @@ export function JobCardForm({
       id: observation.id,
       partService: observation.partService,
       description: observation.description,
+      category: observationCategory(observation),
       quantity: valueOf(observation.quantity),
       unitPrice: valueOf(observation.unitPrice),
       amount: valueOf(observation.amount),
     })) ?? [];
 
   return (
-    <form id="job-card-form" action={action} noValidate className="document-lock-font mx-auto max-w-[1250px] rounded-xl border-2 border-[#d9a5b3] bg-white p-4 shadow-[0_10px_30px_rgba(139,15,47,0.15)]">
-      <JobCardDraftGuard enabled={!jobCard} storageKey={draftKey} />
+    <form id="job-card-form" action={action} noValidate autoComplete="off" className="document-lock-font mx-auto max-w-[1250px] rounded-xl border-2 border-[#d9a5b3] bg-white p-4 shadow-[0_10px_30px_rgba(139,15,47,0.15)]">
+      <JobCardValidationGuard />
       <input type="hidden" name="priority" value={jobCard?.priority ?? "NORMAL"} />
       <input type="hidden" name="status" value={jobCard?.status ?? "VEHICLE_RECEIVED"} />
       <input type="hidden" name="bayNumber" value={jobCard?.bayNumber ?? ""} />
@@ -480,7 +496,13 @@ export function JobCardForm({
                 <input value={jobCard?.jobCardNumber ?? "Auto generated"} readOnly className={jobCardInputClass} />
               </JobCardInfoRow>
               <JobCardInfoRow labelText="Date">
-                <input value={displayDate} readOnly className={jobCardInputClass} />
+                <input
+                  name="jobCardDate"
+                  defaultValue={displayDate}
+                  placeholder="DD/MM/YYYY"
+                  inputMode="numeric"
+                  className={jobCardInputClass}
+                />
               </JobCardInfoRow>
               <JobCardInfoRow labelText="Service Advisor">
                 <input name="serviceAdvisorName" defaultValue={jobCard?.serviceAdvisorName || "Meharban"} className={jobCardInputClass} />
@@ -508,7 +530,7 @@ export function JobCardForm({
                 <option value="">New vehicle</option>
                 {vehicles.map((vehicle) => (
                   <option key={vehicle.id} value={vehicle.id}>
-                    {vehicle.vehicleNumber} - {vehicle.brand} {vehicle.model}
+                    {vehicle.vehicleNumber} - {vehicleMakeModel(vehicle.brand, vehicle.model)}
                   </option>
                 ))}
               </select>
@@ -521,7 +543,7 @@ export function JobCardForm({
         <FormSection title="Customer Details">
           <div className="grid gap-4 md:grid-cols-2">
             <JobCardField labelText="Customer Name" className="md:col-span-2" required>
-              <input name="customerName" defaultValue={selectedCustomer?.name ?? ""} placeholder="Enter customer name" autoComplete="name" className={jobCardInputClass} />
+              <input name="customerName" defaultValue={selectedCustomer?.name ?? ""} placeholder="Enter customer name" autoComplete="off" className={jobCardInputClass} />
             </JobCardField>
             <JobCardField labelText="Contact No." required>
               <input
@@ -532,7 +554,7 @@ export function JobCardForm({
                 pattern="[0-9]{10}"
                 defaultValue={selectedCustomer?.mobile ?? ""}
                 placeholder="10 digit mobile number"
-                autoComplete="tel"
+                autoComplete="off"
                 className={jobCardInputClass}
               />
             </JobCardField>
@@ -545,6 +567,7 @@ export function JobCardForm({
                 pattern="[0-9]{10}"
                 defaultValue={selectedCustomer?.whatsapp ?? ""}
                 placeholder="Optional 10 digit number"
+                autoComplete="off"
                 className={jobCardInputClass}
               />
             </JobCardField>
@@ -553,7 +576,7 @@ export function JobCardForm({
                 name="customerAddress"
                 defaultValue={selectedCustomer?.address ?? ""}
                 placeholder="Enter complete address"
-                autoComplete="street-address"
+                autoComplete="off"
                 className={jobCardTextareaClass}
               />
             </JobCardField>
@@ -578,7 +601,7 @@ export function JobCardForm({
             <JobCardField labelText="Car Make / Model" required>
               <input
                 name="newVehicleMakeModel"
-                defaultValue={[selectedVehicle?.brand, selectedVehicle?.model].filter(Boolean).join(" ")}
+                defaultValue={selectedVehicle ? vehicleMakeModel(selectedVehicle.brand, selectedVehicle.model) : ""}
                 placeholder="Hyundai Creta"
                 autoComplete="off"
                 className={jobCardInputClass}
@@ -635,12 +658,14 @@ export function JobCardForm({
 
       <FormSection title="A/C System Checklist / Inspection Checklist" className="mt-4">
         <div className="overflow-x-auto">
-          <table className="min-w-[900px] w-full border-collapse text-sm">
+          <table className="min-w-[1020px] w-full border-collapse text-sm">
             <thead>
               <tr className="bg-[#fff3f6] text-[#650820]">
+                <th className="border border-[#ead0d7] px-2 py-2 text-center uppercase">S.No</th>
                 <th className="border border-[#ead0d7] px-2 py-2 text-left uppercase">Item</th>
                 <th className="border border-[#ead0d7] px-2 py-2 text-left uppercase">Status</th>
                 <th className="border border-[#ead0d7] px-2 py-2 text-left uppercase">Remarks</th>
+                <th className="border border-[#ead0d7] px-2 py-2 text-center uppercase">S.No</th>
                 <th className="border border-[#ead0d7] px-2 py-2 text-left uppercase">Item</th>
                 <th className="border border-[#ead0d7] px-2 py-2 text-left uppercase">Status</th>
                 <th className="border border-[#ead0d7] px-2 py-2 text-left uppercase">Remarks</th>
@@ -652,6 +677,9 @@ export function JobCardForm({
                   {[left, right].map((item, cellIndex) => (
                     item ? (
                       <Fragment key={item}>
+                        <td className="border border-[#ead0d7] px-2 py-2 text-center font-bold">
+                          {cellIndex === 0 ? index + 1 : index + inspectionSplitIndex + 1}
+                        </td>
                         <td className="border border-[#ead0d7] px-2 py-2 font-bold">
                           <input type="hidden" name="inspectionName" value={item} />
                           {item}
@@ -679,6 +707,7 @@ export function JobCardForm({
                         <td className="border border-[#ead0d7] px-2 py-2" />
                         <td className="border border-[#ead0d7] px-2 py-2" />
                         <td className="border border-[#ead0d7] px-2 py-2" />
+                        <td className="border border-[#ead0d7] px-2 py-2" />
                       </Fragment>
                     )
                   ))}
@@ -689,22 +718,12 @@ export function JobCardForm({
         </div>
       </FormSection>
 
-      <div className="mt-4 grid gap-4 lg:grid-cols-2">
-        <FormSection title="Work To Be Done">
-          <textarea name="workSuggested" defaultValue={jobCard?.workSuggested ?? ""} placeholder="Enter work to be done" className="min-h-[120px] w-full resize-y rounded-md border-[1.5px] border-[#e3c0c9] bg-white px-3 py-2 text-sm outline-none focus:border-[#8b0f2f] focus:ring-4 focus:ring-[#8b0f2f]/10" />
-        </FormSection>
-        <FormSection title="Required Parts / Materials">
-          <textarea name="partsRequired" defaultValue={jobCard?.partsRequired ?? ""} placeholder="Enter required parts / materials" className="min-h-[120px] w-full resize-y rounded-md border-[1.5px] border-[#e3c0c9] bg-white px-3 py-2 text-sm outline-none focus:border-[#8b0f2f] focus:ring-4 focus:ring-[#8b0f2f]/10" />
-        </FormSection>
-      </div>
-
       <JobCardPartsEditor
         observations={serviceObservations}
         totalAmount={valueOf(jobCard?.estimatedTotalAmount)}
         advanceAmount={valueOf(jobCard?.advanceAmount)}
         balanceDue={valueOf(jobCard?.balanceDue)}
         paymentMode={jobCard?.paymentMode}
-        draftKey={!jobCard ? draftKey : undefined}
       />
 
       <FormSection title="Technician / Workshop Use Only" className="mt-4">
@@ -833,12 +852,10 @@ export function EstimateForm({
   const initialItems = lineItemsForEditor(
     estimate?.items?.length ? estimate.items : observationsToLineItems(lockedJobCard?.serviceObservations),
   );
-  const workItems = splitNotes(lockedJobCard?.workSuggested);
-  const requiredParts = splitNotes(lockedJobCard?.partsRequired);
   const estimateNumber =
     estimate?.estimateNumber ||
     documentNumberPreview(lockedJobCard?.jobCardNumber, setting?.estimatePrefix || "EST", "Auto generated");
-  const estimateDate = toDateInput(estimate?.date ?? new Date());
+  const estimateDate = formatDateInput(estimate?.date ?? new Date());
 
   return (
     <form action={action} className="document-lock-font mx-auto max-w-[1120px] rounded-xl border-2 border-[#d9a5b3] bg-white p-4 shadow-[0_10px_30px_rgba(139,15,47,0.15)]">
@@ -852,6 +869,7 @@ export function EstimateForm({
         infoTitle="Estimation Information"
         number={estimateNumber}
         date={estimateDate}
+        dateFieldName="estimateDate"
         serviceAdvisor={serviceAdvisorName}
         setting={setting}
       />
@@ -884,7 +902,7 @@ export function EstimateForm({
               <DocumentTextRow labelText="Reg Number" value={lockedJobCard?.vehicle.vehicleNumber} />
               <DocumentTextRow
                 labelText="Car Make / Model"
-                value={`${lockedJobCard?.vehicle.brand ?? ""} ${lockedJobCard?.vehicle.model ?? ""}`.trim()}
+                value={vehicleMakeModel(lockedJobCard?.vehicle.brand, lockedJobCard?.vehicle.model)}
               />
               <DocumentTextRow labelText="Year" value={lockedJobCard?.vehicle.year ?? "-"} />
               <DocumentTextRow
@@ -897,7 +915,7 @@ export function EstimateForm({
               <DocumentTextRow labelText="Gear Type" value={lockedJobCard?.vehicle.variant || "-"} />
               <DocumentTextRow
                 labelText="Delivery Date"
-                value={lockedJobCard?.expectedDeliveryAt ? `${toDateInput(lockedJobCard.expectedDeliveryAt)} (Expected)` : "-"}
+                value={lockedJobCard?.expectedDeliveryAt ? `${formatDateInput(lockedJobCard.expectedDeliveryAt)} (Expected)` : "-"}
               />
             </div>
           </div>
@@ -907,23 +925,6 @@ export function EstimateForm({
       <FormSection title="Complaint / Issue Reported By Customer" className="mt-4">
         <p className="text-sm font-semibold leading-6 text-slate-950">{problemSummary}</p>
       </FormSection>
-
-      <div className="mt-4 grid gap-4 lg:grid-cols-2">
-        <FormSection title="Work To Be Done">
-          <ul className="list-disc space-y-1 pl-5 text-sm font-semibold leading-6">
-            {(workItems.length ? workItems : ["Inspection and diagnosis as per customer complaint."]).map((item) => (
-              <li key={item}>{item}</li>
-            ))}
-          </ul>
-        </FormSection>
-        <FormSection title="Required Parts / Materials">
-          <ul className="list-disc space-y-1 pl-5 text-sm font-semibold leading-6">
-            {(requiredParts.length ? requiredParts : ["Add required parts and labour below."]).map((item) => (
-              <li key={item}>{item}</li>
-            ))}
-          </ul>
-        </FormSection>
-      </div>
 
       <div className="mt-4">
         <LineItemsEditor items={initialItems} />
@@ -1007,7 +1008,7 @@ export function InvoiceForm({
   const invoiceNumber =
     invoice?.invoiceNumber ||
     documentNumberPreview(lockedJobCard?.jobCardNumber, setting?.invoicePrefix || "INV", "Auto generated");
-  const invoiceDate = toDateInput(invoice?.invoiceDate ?? new Date());
+  const invoiceDate = formatDateInput(invoice?.invoiceDate ?? new Date());
   const estimateItems = selectedEstimate?.items ?? lockedEstimate?.items;
   const initialItems = lineItemsForEditor(
     invoice?.items?.length
@@ -1026,6 +1027,7 @@ export function InvoiceForm({
         infoTitle="Invoice Information"
         number={invoiceNumber}
         date={invoiceDate}
+        dateFieldName="invoiceDate"
         serviceAdvisor={serviceAdvisorName}
         setting={setting}
       />
@@ -1092,12 +1094,12 @@ export function InvoiceForm({
             <JobCardInfoRow labelText="Reg Number">{readOnlyValue(lockedJobCard?.vehicle.vehicleNumber)}</JobCardInfoRow>
             <JobCardInfoRow labelText="Fuel Type">{readOnlyValue(lockedJobCard?.vehicle.fuelType)}</JobCardInfoRow>
             <JobCardInfoRow labelText="Car Make / Model">
-              {readOnlyValue(`${lockedJobCard?.vehicle.brand ?? ""} ${lockedJobCard?.vehicle.model ?? ""}`.trim())}
+              {readOnlyValue(vehicleMakeModel(lockedJobCard?.vehicle.brand, lockedJobCard?.vehicle.model))}
             </JobCardInfoRow>
             <JobCardInfoRow labelText="Gear Type">{readOnlyValue(lockedJobCard?.vehicle.variant || "-")}</JobCardInfoRow>
             <JobCardInfoRow labelText="Year">{readOnlyValue(lockedJobCard?.vehicle.year ?? "-")}</JobCardInfoRow>
             <JobCardInfoRow labelText="Delivery Date">
-              {readOnlyValue(lockedJobCard?.expectedDeliveryAt ? toDateInput(lockedJobCard.expectedDeliveryAt) : "-")}
+              {readOnlyValue(lockedJobCard?.expectedDeliveryAt ? formatDateInput(lockedJobCard.expectedDeliveryAt) : "-")}
             </JobCardInfoRow>
             <JobCardInfoRow labelText="KM Reading">
               {readOnlyValue(lockedJobCard?.vehicle.odometerReading ? `${lockedJobCard.vehicle.odometerReading.toLocaleString("en-IN")} KM` : "-")}

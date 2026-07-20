@@ -22,6 +22,7 @@ import {
 } from "@/lib/constants";
 import { clearSessionCookie, requireUser, setSessionCookie, verifyLogin } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { resolveInspectionItemShortcut } from "@/lib/inspection-shortcuts";
 import { normalizeMobile } from "@/lib/utils";
 import { statusMessageTemplateFields } from "@/lib/status-message-templates";
 import {
@@ -49,8 +50,11 @@ const expectedActionMessages = new Set([
   "Select an existing customer or enter new customer name and mobile number.",
   "Enter a valid 10 digit customer mobile number.",
   "Enter a valid 10 digit alternate mobile number.",
-  "Select an existing vehicle or enter new vehicle number, brand, model, and fuel type.",
+  "This customer mobile number already exists.",
+  "Select an existing vehicle or enter vehicle number, car make/model, and fuel type.",
   "Select existing customer and vehicle, or enter new customer and vehicle details.",
+  "This vehicle number already exists.",
+  "Enter date in DD/MM/YYYY format.",
   "Delete linked estimates and invoices before deleting this job card.",
   "Delete linked invoices before deleting this estimate.",
   "Delete is blocked because payments are recorded for this invoice.",
@@ -75,7 +79,11 @@ function prismaErrorTarget(error: unknown) {
   const meta = (error as { meta?: { target?: unknown } }).meta;
   const target = meta?.target;
   if (Array.isArray(target)) return target.join(", ");
-  return typeof target === "string" ? target : "";
+  if (typeof target === "string") return target;
+  const causeTarget = (meta as { driverAdapterError?: { cause?: { constraint?: { fields?: unknown } } } } | undefined)
+    ?.driverAdapterError?.cause?.constraint?.fields;
+  if (Array.isArray(causeTarget)) return causeTarget.join(", ");
+  return "";
 }
 
 function friendlyActionError(error: unknown) {
@@ -96,8 +104,15 @@ function friendlyActionError(error: unknown) {
     return "The requested record was not found. It may have been deleted already.";
   }
 
+  if (code === "P2022") {
+    return "Database is not updated with the latest fields. Run prisma migrate deploy, then restart the app.";
+  }
+
   if (error instanceof Error) {
     if (expectedActionMessages.has(error.message)) return error.message;
+    if (error.message.includes("JobCardServiceObservation") && error.message.includes("category")) {
+      return "Database is not updated with Job Card Parts/Labour field. Run prisma migrate deploy, then restart the app.";
+    }
     if (error.message.includes("DATABASE_URL")) return "Database connection is not configured correctly.";
     if (error.message.includes("NEXTAUTH_SECRET") || error.message.includes("AUTH_SECRET")) {
       return "Login security secret is not configured correctly.";
@@ -201,6 +216,33 @@ function optionalDate(value: string) {
   return value ? new Date(value) : undefined;
 }
 
+function optionalDocumentDate(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+
+  const normalized = trimmed.replaceAll("-", "/").replaceAll(".", "/");
+  const match = normalized.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (!match) {
+    throw new Error("Enter date in DD/MM/YYYY format.");
+  }
+
+  const day = Number(match[1]);
+  const month = Number(match[2]);
+  const year = Number(match[3]);
+  const date = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
+
+  if (
+    !Number.isFinite(date.getTime()) ||
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() !== month - 1 ||
+    date.getUTCDate() !== day
+  ) {
+    throw new Error("Enter date in DD/MM/YYYY format.");
+  }
+
+  return date;
+}
+
 function decimal(value: string) {
   const parsed = Number(value || "0");
   return Number.isFinite(parsed) ? new Prisma.Decimal(parsed) : new Prisma.Decimal(0);
@@ -219,6 +261,28 @@ function strictDecimal(value: string) {
 
 function nonNegative(value: Prisma.Decimal) {
   return value.lessThan(0) ? new Prisma.Decimal(0) : value;
+}
+
+async function ensureCustomerMobileAvailable(mobile: string, currentCustomerId: string) {
+  const existing = await prisma.customer.findUnique({
+    where: { mobile },
+    select: { id: true },
+  });
+
+  if (existing && existing.id !== currentCustomerId) {
+    throw new Error("This customer mobile number already exists.");
+  }
+}
+
+async function ensureVehicleNumberAvailable(vehicleNumber: string, currentVehicleId: string) {
+  const existing = await prisma.vehicle.findUnique({
+    where: { vehicleNumber },
+    select: { id: true },
+  });
+
+  if (existing && existing.id !== currentVehicleId) {
+    throw new Error("This vehicle number already exists.");
+  }
 }
 
 function bool(formData: FormData, key: string) {
@@ -252,6 +316,7 @@ function parseInspectionItems(formData: FormData) {
 }
 
 function parseJobCardServiceObservations(formData: FormData) {
+  const categories = formData.getAll("observationCategory");
   const partServices = formData.getAll("observationPartService");
   const descriptions = formData.getAll("observationDescription");
   const quantities = formData.getAll("observationQuantity");
@@ -261,6 +326,7 @@ function parseJobCardServiceObservations(formData: FormData) {
   return partServices
     .map((partService, index) => {
       const partServiceText = typeof partService === "string" ? partService.trim() : "";
+      const resolvedPartService = resolveInspectionItemShortcut(partServiceText).trim();
       const description = typeof descriptions[index] === "string" ? descriptions[index].trim() : "";
       const quantity = looseDecimal(typeof quantities[index] === "string" ? quantities[index] : "");
       const unitPrice = decimal(typeof unitPrices[index] === "string" ? unitPrices[index] : "");
@@ -269,8 +335,12 @@ function parseJobCardServiceObservations(formData: FormData) {
 
       return {
         sortOrder: index + 1,
-        partService: partServiceText || description,
+        partService: resolvedPartService || description,
         description: optional(description),
+        category:
+          typeof categories[index] === "string" && categories[index] === ItemCategory.LABOUR
+            ? ItemCategory.LABOUR
+            : ItemCategory.PARTS,
         quantity,
         unitPrice,
         amount,
@@ -410,7 +480,6 @@ async function jobCardMessageContext(jobCardId: string) {
   const latestInvoice = jobCard.invoices[0];
   const problemSummary =
     jobCard.problemFound ||
-    jobCard.workSuggested ||
     jobCard.customComplaint ||
     jobCard.complaints.join(", ") ||
     undefined;
@@ -512,7 +581,8 @@ function parseLineItems(formData: FormData) {
 
   return descriptions
     .map((description, index) => {
-      const partService = typeof partServices[index] === "string" ? partServices[index].trim() : "";
+      const partServiceText = typeof partServices[index] === "string" ? partServices[index].trim() : "";
+      const partService = resolveInspectionItemShortcut(partServiceText).trim();
       const lineDescription = typeof description === "string" ? description.trim() : "";
       const quantityText = typeof quantities[index] === "string" ? quantities[index] : "0";
       const unitPriceText = typeof unitPrices[index] === "string" ? unitPrices[index] : "0";
@@ -603,6 +673,7 @@ export async function saveJobCard(id: string | null, formData: FormData) {
     complaintOptions.includes(value as (typeof complaintOptions)[number]),
   );
   const status = (str(formData, "status") || "VEHICLE_RECEIVED") as JobCardStatus;
+  const jobCardDate = optionalDocumentDate(str(formData, "jobCardDate"));
   const deliveryDate = str(formData, "expectedDeliveryAt") || str(formData, "expectedDeliveryDate");
   let customerId = str(formData, "customerId");
   let vehicleId = str(formData, "vehicleId");
@@ -658,7 +729,18 @@ export async function saveJobCard(id: string | null, formData: FormData) {
   if ((!brand || !model) && makeModel) {
     const [firstPart, ...remainingParts] = makeModel.split(/\s+/);
     brand = brand || firstPart || makeModel;
-    model = model || remainingParts.join(" ") || makeModel;
+    model = model || remainingParts.join(" ");
+  }
+
+  if (!id && hasCustomerDetails) {
+    customerId = "";
+    if (!hasVehicleDetails) {
+      vehicleId = "";
+    }
+  }
+
+  if (!id && hasVehicleDetails) {
+    vehicleId = "";
   }
 
   if (vehicleId && !customerId) {
@@ -718,6 +800,8 @@ export async function saveJobCard(id: string | null, formData: FormData) {
       throw new Error("Enter a valid 10 digit alternate mobile number.");
     }
 
+    await ensureCustomerMobileAvailable(customerMobile, customerId);
+
     await prisma.customer.update({
       where: { id: customerId },
       data: {
@@ -732,8 +816,8 @@ export async function saveJobCard(id: string | null, formData: FormData) {
   }
 
   if (!vehicleId) {
-    if (!customerId || !vehicleNumber || !brand || !model || !fuelType) {
-      throw new Error("Select an existing vehicle or enter new vehicle number, brand, model, and fuel type.");
+    if (!customerId || !vehicleNumber || !brand || !fuelType) {
+      throw new Error("Select an existing vehicle or enter vehicle number, car make/model, and fuel type.");
     }
 
     const vehicleData = {
@@ -773,9 +857,11 @@ export async function saveJobCard(id: string | null, formData: FormData) {
     vehicleId = vehicle.id;
     customerId = vehicle.customerId;
   } else if (hasVehicleDetails) {
-    if (!vehicleNumber || !brand || !model || !fuelType) {
-      throw new Error("Select an existing vehicle or enter new vehicle number, brand, model, and fuel type.");
+    if (!vehicleNumber || !brand || !fuelType) {
+      throw new Error("Select an existing vehicle or enter vehicle number, car make/model, and fuel type.");
     }
+
+    await ensureVehicleNumberAvailable(vehicleNumber, vehicleId);
 
     await prisma.vehicle.update({
       where: { id: vehicleId },
@@ -801,6 +887,7 @@ export async function saveJobCard(id: string | null, formData: FormData) {
   const data = {
     customerId,
     vehicleId,
+    dateTime: jobCardDate ?? new Date(),
     serviceAdvisorId: session.id,
     serviceAdvisorName: optional(str(formData, "serviceAdvisorName")) || "Meharban",
     assignedTechnicianId: optional(str(formData, "assignedTechnicianId")),
@@ -811,8 +898,8 @@ export async function saveJobCard(id: string | null, formData: FormData) {
     complaints,
     customComplaint: optional(str(formData, "customComplaint")),
     problemFound: optional(str(formData, "problemFound")),
-    workSuggested: optional(str(formData, "workSuggested")),
-    partsRequired: optional(str(formData, "partsRequired")),
+    workSuggested: null,
+    partsRequired: null,
     serviceRecommendation: optional(str(formData, "serviceRecommendation")),
     internalNotes: optional(str(formData, "internalNotes")),
     finalQcBy: optional(str(formData, "finalQcBy")),
@@ -1090,6 +1177,7 @@ export async function saveEstimate(id: string | null, formData: FormData) {
   const totalAmount = nonNegative(subtotal.sub(discount));
   const balanceAmount = nonNegative(totalAmount.sub(advanceReceived));
   const status = (str(formData, "status") || "DRAFT") as EstimateStatus;
+  const estimateDate = optionalDocumentDate(str(formData, "estimateDate"));
   const problemSummary =
     optional(str(formData, "problemSummary")) ||
     [...jobCard.complaints, jobCard.customComplaint].filter(Boolean).join(", ") ||
@@ -1099,6 +1187,7 @@ export async function saveEstimate(id: string | null, formData: FormData) {
     jobCardId,
     customerId: jobCard.customerId,
     vehicleId: jobCard.vehicleId,
+    date: estimateDate,
     validTill: optionalDate(str(formData, "validTill")),
     serviceAdvisorId: session.id,
     problemSummary,
@@ -1313,12 +1402,14 @@ export async function saveInvoice(id: string | null, formData: FormData) {
   const paidAmount = decimal(str(formData, "paidAmount"));
   const totalAmount = nonNegative(subtotal.sub(discount));
   const balanceAmount = nonNegative(totalAmount.sub(paidAmount));
+  const invoiceDate = optionalDocumentDate(str(formData, "invoiceDate"));
 
   const data = {
     jobCardId,
     estimateId,
     customerId: jobCard.customerId,
     vehicleId: jobCard.vehicleId,
+    invoiceDate,
     serviceAdvisorId: session.id,
     discount,
     totalAmount,
@@ -1507,6 +1598,56 @@ export async function recordPayment(formData: FormData) {
 
   revalidatePath(`/invoices/${invoiceId}`);
   redirect(`/invoices/${invoiceId}`);
+  });
+}
+
+export async function deletePayment(id: string) {
+  return runAction("deletePayment", `/payments/${id}`, async () => {
+  await requireUser([UserRole.ADMIN]);
+  const payment = await prisma.payment.findUnique({
+    where: { id },
+    include: {
+      invoice: {
+        select: {
+          id: true,
+          estimateId: true,
+          jobCardId: true,
+          totalAmount: true,
+        },
+      },
+    },
+  });
+
+  if (!payment) {
+    redirect("/payments");
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.payment.delete({ where: { id } });
+
+    const remainingPayments = await tx.payment.aggregate({
+      where: { invoiceId: payment.invoiceId },
+      _sum: { amount: true },
+    });
+    const paidAmount = remainingPayments._sum.amount ?? new Prisma.Decimal(0);
+    const balanceAmount = nonNegative(payment.invoice.totalAmount.sub(paidAmount));
+
+    await tx.invoice.update({
+      where: { id: payment.invoiceId },
+      data: {
+        paidAmount,
+        balanceAmount,
+        paymentStatus: paymentStatusFor(payment.invoice.totalAmount, paidAmount),
+      },
+    });
+  });
+
+  revalidatePath("/");
+  revalidatePath("/payments");
+  revalidatePath(`/invoices/${payment.invoiceId}`);
+  revalidatePath(`/job-cards/${payment.invoice.jobCardId}`);
+  if (payment.invoice.estimateId) revalidatePath(`/estimates/${payment.invoice.estimateId}`);
+  redirect(`/invoices/${payment.invoiceId}`);
   });
 }
 

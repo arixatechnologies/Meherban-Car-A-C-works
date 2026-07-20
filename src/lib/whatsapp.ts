@@ -108,15 +108,21 @@ function trackingLink(context: MessageContext) {
   return context.trackingToken ? `${baseUrl}/track/${context.trackingToken}` : baseUrl;
 }
 
+function jobCardDownloadLink(context: MessageContext) {
+  return context.trackingToken
+    ? `${appUrl(context)}/track/${context.trackingToken}/job-card/download`
+    : trackingLink(context);
+}
+
 function estimateLink(context: MessageContext) {
   return context.trackingToken && context.estimateId
-    ? `${appUrl(context)}/track/${context.trackingToken}/estimate`
+    ? `${appUrl(context)}/track/${context.trackingToken}/estimate/download`
     : trackingLink(context);
 }
 
 function invoiceLink(context: MessageContext) {
   return context.trackingToken && context.invoiceId
-    ? `${appUrl(context)}/track/${context.trackingToken}/invoice`
+    ? `${appUrl(context)}/track/${context.trackingToken}/invoice/download`
     : trackingLink(context);
 }
 
@@ -287,8 +293,8 @@ export function jobCardCreatedBody(context: MessageContext) {
 
 Job Card No: ${context.jobCardNumber}
 
-Track your service status here:
-${trackingLink(context)}`;
+Download Job Card PDF:
+${jobCardDownloadLink(context)}`;
 }
 
 export function inspectionCompletedBody(context: MessageContext) {
@@ -311,8 +317,8 @@ Estimated Amount: ${formatMoney(context.totalAmount)}
 
 Please review and approve before we start the work.
 
-Track / Approve here:
-${trackingLink(context)}`;
+Download Estimate PDF:
+${estimateLink(context)}`;
 }
 
 export function estimateApprovalReminderBody(context: MessageContext) {
@@ -352,8 +358,8 @@ Total Amount: ${formatMoney(context.totalAmount)}
 Paid Amount: ${formatMoney(context.paidAmount)}
 Balance Amount: ${formatMoney(context.balanceAmount)}
 
-View bill:
-${trackingLink(context)}`;
+Download Invoice PDF:
+${invoiceLink(context)}`;
 }
 
 export function paymentReminderBody(context: MessageContext) {

@@ -16,22 +16,28 @@ export function formatMoney(value: Decimalish, symbol = "\u20B9") {
 
 export function formatDate(value: Date | string | null | undefined) {
   if (!value) return "-";
-  return new Intl.DateTimeFormat("en-IN", {
+  return new Intl.DateTimeFormat("en-GB", {
     day: "2-digit",
-    month: "short",
+    month: "2-digit",
     year: "numeric",
+    timeZone: "Asia/Kolkata",
   }).format(new Date(value));
 }
 
 export function formatDateTime(value: Date | string | null | undefined) {
   if (!value) return "-";
-  return new Intl.DateTimeFormat("en-IN", {
+  return new Intl.DateTimeFormat("en-GB", {
     day: "2-digit",
-    month: "short",
+    month: "2-digit",
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
+    timeZone: "Asia/Kolkata",
   }).format(new Date(value));
+}
+
+export function formatDateInput(value: Date | string | null | undefined) {
+  return value ? formatDate(value) : "";
 }
 
 export function toDateInput(value: Date | string | null | undefined) {
