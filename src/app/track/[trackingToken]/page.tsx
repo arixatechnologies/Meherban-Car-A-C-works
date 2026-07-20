@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
-import { PdfDownloadIcon, WhatsAppIcon } from "@/components/action-icons";
+import { WhatsAppIcon } from "@/components/action-icons";
+import { PdfDownloadButton } from "@/components/pdf-download-button";
 import { Badge, Button, Card, CardBody, CardHeader, DataTable, DetailGrid, DetailItem, PageHeader } from "@/components/ui";
 import { approveEstimateFromTracking } from "@/lib/actions";
 import { prisma } from "@/lib/db";
@@ -36,6 +37,8 @@ export default async function TrackingPage({
   const invoice = jobCard.invoices[0];
   const workshopPhone = setting?.phoneNumber || "7287948037";
   const whatsappNumber = setting?.whatsappNumber || workshopPhone;
+  const downloadButtonClass =
+    "inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-[#f1b8b8] bg-[#fff0f0] px-4 text-sm font-bold text-[#c62828] transition hover:bg-[#ffe0e0] focus:outline-none focus:ring-2 focus:ring-[#d97873] focus:ring-offset-2";
   const invoiceReturnAmount = invoice ? Math.max(Number(invoice.paidAmount) - Number(invoice.totalAmount), 0) : 0;
   const estimateReturnAmount = estimate ? Math.max(Number(estimate.advanceReceived) - Number(estimate.totalAmount), 0) : 0;
   const payableLabel =
@@ -106,14 +109,12 @@ export default async function TrackingPage({
                 <form action={approveEstimateFromTracking.bind(null, estimate.id, trackingToken)}>
                   <Button type="submit">Approve Estimate</Button>
                 </form>
-                <Button
+                <PdfDownloadButton
                   href={`/track/${trackingToken}/estimate/download`}
-                  variant="secondary"
-                  className="border-[#f1b8b8] bg-[#fff0f0] text-[#c62828] hover:bg-[#ffe0e0]"
+                  className={downloadButtonClass}
                 >
-                  <PdfDownloadIcon />
                   Estimate Download
-                </Button>
+                </PdfDownloadButton>
               </div>
             </CardBody>
           </Card>
@@ -124,14 +125,12 @@ export default async function TrackingPage({
             <CardHeader title="Invoice Status" action={<Badge value={invoice.paymentStatus} />} />
             <CardBody>
               <div className="flex flex-wrap gap-2">
-                <Button
+                <PdfDownloadButton
                   href={`/track/${trackingToken}/invoice/download`}
-                  variant="secondary"
-                  className="border-[#f1b8b8] bg-[#fff0f0] text-[#c62828] hover:bg-[#ffe0e0]"
+                  className={downloadButtonClass}
                 >
-                  <PdfDownloadIcon />
                   Invoice Download
-                </Button>
+                </PdfDownloadButton>
               </div>
             </CardBody>
           </Card>

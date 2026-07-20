@@ -1,6 +1,7 @@
 import { Plus } from "lucide-react";
 import Link from "next/link";
-import { PdfDownloadIcon, PreviewIcon, WhatsAppIcon } from "@/components/action-icons";
+import { PreviewIcon, WhatsAppIcon } from "@/components/action-icons";
+import { PdfDownloadButton } from "@/components/pdf-download-button";
 import { StatusMessageControl } from "@/components/status-message-control";
 import { Badge, Button, Card, CardBody, CardHeader, DataTable, PageHeader, inputClass } from "@/components/ui";
 import { prisma } from "@/lib/db";
@@ -393,9 +394,7 @@ export async function BillingWorkspace({
                 <Link href={document.href} className={iconActionClass("view")} title="View">
                   <PreviewIcon />
                 </Link>
-                <a href={document.pdfHref} download className={iconActionClass("pdf")} title="Download PDF">
-                  <PdfDownloadIcon />
-                </a>
+                <PdfDownloadButton href={document.pdfHref} className={iconActionClass("pdf")} compact />
                 <a
                   href={createWhatsAppLink(document.mobileNumber, document.message)}
                   target="_blank"

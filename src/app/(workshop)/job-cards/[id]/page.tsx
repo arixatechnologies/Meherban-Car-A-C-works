@@ -1,9 +1,10 @@
 import { Calculator, Edit, Trash2 } from "lucide-react";
 import { notFound } from "next/navigation";
-import { PdfDownloadIcon, WhatsAppIcon } from "@/components/action-icons";
+import { WhatsAppIcon } from "@/components/action-icons";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { DocumentChain } from "@/components/document-chain";
 import { JobCardPreview } from "@/components/job-card-preview";
+import { PdfDownloadButton } from "@/components/pdf-download-button";
 import { Button } from "@/components/ui";
 import { deleteJobCard } from "@/lib/actions";
 import { requireUser } from "@/lib/auth";
@@ -63,10 +64,7 @@ export default async function JobCardDetailPage({
           <Calculator className="h-4 w-4" />
           {latestEstimate ? "View Estimation" : "Create Estimation"}
         </Button>
-        <a href={`/job-cards/${jobCard.id}/pdf`} download className={pdfButtonClass}>
-          <PdfDownloadIcon />
-          Download PDF
-        </a>
+        <PdfDownloadButton href={`/job-cards/${jobCard.id}/pdf`} className={pdfButtonClass} />
         <a
           href={createWhatsAppLink(jobCard.customer.whatsapp || jobCard.customer.mobile, message)}
           target="_blank"
