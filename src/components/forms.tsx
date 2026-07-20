@@ -1,11 +1,9 @@
 import {
   inspectionStatuses,
   jobCardStatuses,
-  paymentModes,
   inspectionItemNames,
 } from "@/lib/constants";
 import {
-  recordPayment,
   saveEstimate,
   saveInspection,
   saveInvoice,
@@ -22,6 +20,7 @@ import { SubmitButton } from "@/components/submit-button";
 import { JobCardPartsEditor } from "@/components/job-card-parts-editor";
 import { JobCardValidationGuard } from "@/components/job-card-validation-guard";
 import { LineItemsEditor } from "@/components/line-items-editor";
+import { PaymentFormClient } from "@/components/payment-form-client";
 import { Fragment, type ReactNode } from "react";
 import Image from "next/image";
 import { MapPin, Phone } from "lucide-react";
@@ -1169,44 +1168,14 @@ export function PaymentForm({
   invoices: InvoiceOption[];
   selectedInvoiceId?: string;
 }) {
-  return (
-    <form action={recordPayment} className="grid gap-4 lg:grid-cols-2">
-      <Field labelText="Invoice">
-        <select name="invoiceId" required defaultValue={selectedInvoiceId ?? ""} className={inputClass}>
-          <option value="">Select invoice</option>
-          {invoices.map((invoice) => (
-            <option key={invoice.id} value={invoice.id}>
-              {invoice.invoiceNumber} - {invoice.customer.name} - Balance {formatMoney(invoice.balanceAmount)}
-            </option>
-          ))}
-        </select>
-      </Field>
-      <Field labelText="Amount">
-        <input name="amount" required type="number" step="0.01" className={inputClass} />
-      </Field>
-      <Field labelText="Payment mode">
-        <select name="mode" defaultValue="CASH" className={inputClass}>
-          {paymentModes.map((mode) => (
-            <option key={mode} value={mode}>
-              {label(mode)}
-            </option>
-          ))}
-        </select>
-      </Field>
-      <Field labelText="Payment date">
-        <input name="paymentDate" type="date" defaultValue={toDateInput(new Date())} className={inputClass} />
-      </Field>
-      <Field labelText="Reference number">
-        <input name="referenceNumber" className={inputClass} />
-      </Field>
-      <Field labelText="Notes">
-        <input name="notes" className={inputClass} />
-      </Field>
-      <div className="lg:col-span-2">
-        <SubmitButton>Record payment</SubmitButton>
-      </div>
-    </form>
-  );
+  const normalizedInvoices = invoices.map((invoice) => ({
+    id: invoice.id,
+    invoiceNumber: invoice.invoiceNumber,
+    customer: invoice.customer,
+    balanceAmount: valueOf(invoice.balanceAmount),
+  }));
+
+  return <PaymentFormClient invoices={normalizedInvoices} selectedInvoiceId={selectedInvoiceId} />;
 }
 
 export function WhatsAppSendForm({

@@ -43,6 +43,22 @@ export type AuthActionState = {
   message?: string;
 };
 
+export type PaymentActionState = {
+  message?: string;
+  fieldErrors?: {
+    invoiceId?: string;
+    amount?: string;
+  };
+  values?: {
+    invoiceId?: string;
+    amount?: string;
+    mode?: string;
+    paymentDate?: string;
+    referenceNumber?: string;
+    notes?: string;
+  };
+};
+
 const maxLoginAttempts = 5;
 const loginLockMs = 15 * 60 * 1000;
 const loginAttempts = new Map<string, { count: number; lockedUntil?: number }>();
@@ -59,6 +75,7 @@ const expectedActionMessages = new Set([
   "Delete linked invoices before deleting this estimate.",
   "Delete is blocked because payments are recorded for this invoice.",
   "Add at least one parts/materials or labour item.",
+  "Select an invoice before recording payment.",
   "Payment amount must be greater than zero.",
   "Payment amount cannot be more than the invoice balance due.",
   "Enter customer mobile number and message before sending WhatsApp.",
@@ -287,6 +304,23 @@ async function ensureVehicleNumberAvailable(vehicleNumber: string, currentVehicl
 
 function bool(formData: FormData, key: string) {
   return formData.get(key) === "on" || formData.get(key) === "true";
+}
+
+function paymentActionValues(formData: FormData): PaymentActionState["values"] {
+  return {
+    invoiceId: str(formData, "invoiceId"),
+    amount: str(formData, "amount"),
+    mode: str(formData, "mode"),
+    paymentDate: str(formData, "paymentDate"),
+    referenceNumber: str(formData, "referenceNumber"),
+    notes: str(formData, "notes"),
+  };
+}
+
+function paymentFieldErrors(message: string): PaymentActionState["fieldErrors"] {
+  if (message.includes("invoice")) return { invoiceId: message };
+  if (message.includes("Payment amount")) return { amount: message };
+  return undefined;
 }
 
 function selectedArray(formData: FormData, key: string) {
@@ -1550,10 +1584,13 @@ export async function deleteInvoice(id: string) {
   });
 }
 
-export async function recordPayment(formData: FormData) {
-  return runAction("recordPayment", "/payments/new", async () => {
+async function recordPaymentMutation(formData: FormData) {
   const session = await requireUser([UserRole.ADMIN, UserRole.BILLING_STAFF]);
   const invoiceId = str(formData, "invoiceId");
+  if (!invoiceId) {
+    throw new Error("Select an invoice before recording payment.");
+  }
+
   const amount = decimal(str(formData, "amount"));
   if (amount.lessThanOrEqualTo(0)) {
     throw new Error("Payment amount must be greater than zero.");
@@ -1596,9 +1633,41 @@ export async function recordPayment(formData: FormData) {
     },
   });
 
+  return invoiceId;
+}
+
+export async function recordPayment(formData: FormData) {
+  return runAction("recordPayment", "/payments/new", async () => {
+  const invoiceId = await recordPaymentMutation(formData);
+
   revalidatePath(`/invoices/${invoiceId}`);
   redirect(`/invoices/${invoiceId}`);
   });
+}
+
+export async function recordPaymentWithState(
+  _prevState: PaymentActionState,
+  formData: FormData,
+): Promise<PaymentActionState> {
+  const values = paymentActionValues(formData);
+  let invoiceId = "";
+
+  try {
+    invoiceId = await recordPaymentMutation(formData);
+  } catch (error) {
+    unstable_rethrow(error);
+    console.error("[recordPayment]", error);
+    const message = friendlyActionError(error);
+
+    return {
+      message,
+      fieldErrors: paymentFieldErrors(message),
+      values,
+    };
+  }
+
+  revalidatePath(`/invoices/${invoiceId}`);
+  redirect(`/invoices/${invoiceId}`);
 }
 
 export async function deletePayment(id: string) {
