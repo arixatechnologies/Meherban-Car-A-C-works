@@ -541,7 +541,7 @@ export function JobCardForm({
       <div className="mt-4 grid gap-4 xl:grid-cols-[1fr_1.4fr]">
         <FormSection title="Customer Details">
           <div className="grid gap-4 md:grid-cols-2">
-            <JobCardField labelText="Customer Name" className="md:col-span-2" required>
+            <JobCardField labelText="Customer Name" className="md:col-span-2">
               <input name="customerName" defaultValue={selectedCustomer?.name ?? ""} placeholder="Enter customer name" autoComplete="off" className={jobCardInputClass} />
             </JobCardField>
             <JobCardField labelText="Contact No." required>

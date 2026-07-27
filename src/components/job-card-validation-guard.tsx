@@ -121,10 +121,6 @@ function validateJobCardForm(form: HTMLFormElement) {
   const customerMobile = digits(valueOf(form, "customerMobile"));
   const alternateMobile = digits(valueOf(form, "customerWhatsapp"));
 
-  if (shouldValidateCustomer && !valueOf(form, "customerName")) {
-    errors.push({ name: "customerName", message: "Enter customer name." });
-  }
-
   if (shouldValidateCustomer && !customerMobile) {
     errors.push({ name: "customerMobile", message: "Enter customer contact number." });
   } else if (customerMobile && customerMobile.length !== 10) {

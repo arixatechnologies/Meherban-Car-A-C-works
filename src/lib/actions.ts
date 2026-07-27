@@ -67,6 +67,8 @@ const expectedActionMessages = new Set([
   "Enter a valid 10 digit customer mobile number.",
   "Enter a valid 10 digit alternate mobile number.",
   "This customer mobile number already exists.",
+  "Select an existing customer or enter customer mobile number.",
+  "Enter customer contact number.",
   "Select an existing vehicle or enter vehicle number, car make/model, and fuel type.",
   "Select existing customer and vehicle, or enter new customer and vehicle details.",
   "This vehicle number already exists.",
@@ -783,8 +785,8 @@ export async function saveJobCard(id: string | null, formData: FormData) {
   }
 
   if (!customerId) {
-    if (!customerName || !customerMobile) {
-      throw new Error("Select an existing customer or enter new customer name and mobile number.");
+    if (!customerMobile) {
+      throw new Error("Select an existing customer or enter customer mobile number.");
     }
 
     if (customerMobile.length !== 10) {
@@ -795,8 +797,9 @@ export async function saveJobCard(id: string | null, formData: FormData) {
       throw new Error("Enter a valid 10 digit alternate mobile number.");
     }
 
+    const fallbackCustomerName = customerName || `Customer ${customerMobile}`;
     const customerData = {
-      name: customerName,
+      name: fallbackCustomerName,
       mobile: customerMobile,
       whatsapp: optional(customerWhatsapp),
       email: optional(customerEmail),
@@ -811,7 +814,7 @@ export async function saveJobCard(id: string | null, formData: FormData) {
       await prisma.customer.update({
         where: { id: customer.id },
         data: {
-          name: customerName,
+          name: customerName || customer.name,
           whatsapp: customerData.whatsapp,
           email: customerData.email,
           address: customerData.address,
@@ -822,8 +825,8 @@ export async function saveJobCard(id: string | null, formData: FormData) {
 
     customerId = customer.id;
   } else if (hasCustomerDetails) {
-    if (!customerName || !customerMobile) {
-      throw new Error("Select an existing customer or enter new customer name and mobile number.");
+    if (!customerMobile) {
+      throw new Error("Enter customer contact number.");
     }
 
     if (customerMobile.length !== 10) {
@@ -839,7 +842,7 @@ export async function saveJobCard(id: string | null, formData: FormData) {
     await prisma.customer.update({
       where: { id: customerId },
       data: {
-        name: customerName,
+        ...(customerName ? { name: customerName } : {}),
         mobile: customerMobile,
         whatsapp: optional(customerWhatsapp),
         email: optional(customerEmail),

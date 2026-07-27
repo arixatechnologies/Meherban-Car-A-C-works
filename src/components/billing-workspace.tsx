@@ -7,7 +7,7 @@ import { Badge, Button, Card, CardBody, CardHeader, DataTable, PageHeader, input
 import { prisma } from "@/lib/db";
 import { formatDate } from "@/lib/format";
 import { statusMessageTemplateFields } from "@/lib/status-message-templates";
-import { cn } from "@/lib/utils";
+import { cn, vehicleMakeModel } from "@/lib/utils";
 import {
   createWhatsAppLink,
   estimateSharedBody,
@@ -238,6 +238,7 @@ export async function BillingWorkspace({
       pdfHref: `/job-cards/${jobCard.id}/pdf`,
       customerName: jobCard.customer.name,
       mobileNumber: jobCard.customer.whatsapp || jobCard.customer.mobile,
+      vehicleName: vehicleMakeModel(jobCard.vehicle.brand, jobCard.vehicle.model),
       vehicleNumber: jobCard.vehicle.vehicleNumber,
       status: jobCard.status,
       statusNode: (
@@ -273,6 +274,7 @@ export async function BillingWorkspace({
       pdfHref: `/estimates/${estimate.id}/pdf`,
       customerName: estimate.customer.name,
       mobileNumber: estimate.customer.whatsapp || estimate.customer.mobile,
+      vehicleName: vehicleMakeModel(estimate.vehicle.brand, estimate.vehicle.model),
       vehicleNumber: estimate.vehicle.vehicleNumber,
       status: estimate.status,
       statusNode: <Badge value={estimate.status} />,
@@ -297,6 +299,7 @@ export async function BillingWorkspace({
       pdfHref: `/invoices/${invoice.id}/pdf`,
       customerName: invoice.customer.name,
       mobileNumber: invoice.customer.whatsapp || invoice.customer.mobile,
+      vehicleName: vehicleMakeModel(invoice.vehicle.brand, invoice.vehicle.model),
       vehicleNumber: invoice.vehicle.vehicleNumber,
       status: invoice.paymentStatus,
       statusNode: <Badge value={invoice.paymentStatus} />,
@@ -377,13 +380,13 @@ export async function BillingWorkspace({
           </div>
 
           <DataTable
-            headers={["Document", "Customer", "Phone", "Vehicle", "Date", "Status", "Actions"]}
+            headers={["Document", "Car Make / Model", "Phone", "Vehicle", "Date", "Status", "Actions"]}
             empty="No billing documents found."
             rows={documents.map((document) => [
               <Link key="number" href={document.href} className="font-black text-[#5a173b] hover:underline">
                 {document.number}
               </Link>,
-              document.customerName,
+              document.vehicleName,
               <a key="phone" href={`tel:${document.mobileNumber}`} className="font-black text-[#5a173b] hover:underline">
                 {document.mobileNumber}
               </a>,
