@@ -37,14 +37,18 @@ export function InfoRow({
   labelText,
   value,
   valueClassName = "",
+  labelClassName = "",
+  className = "",
 }: {
   labelText: string;
   value: ReactNode;
   valueClassName?: string;
+  labelClassName?: string;
+  className?: string;
 }) {
   return (
-    <div className="grid min-w-0 grid-cols-[136px_10px_minmax(0,1fr)] gap-2 text-[13px] leading-6">
-      <dt className="font-bold text-slate-950">{labelText}</dt>
+    <div className={`grid min-w-0 grid-cols-[136px_10px_minmax(0,1fr)] gap-2 text-[13px] leading-6 ${className}`}>
+      <dt className={`font-bold text-slate-950 ${labelClassName}`}>{labelText}</dt>
       <dd className="font-bold text-slate-700">:</dd>
       <dd className={`min-w-0 break-words text-slate-950 ${valueClassName}`}>{value || "-"}</dd>
     </div>
@@ -188,15 +192,19 @@ export function CustomerVehicleBlocks({
       </DocBox>
 
       <DocBox title="Vehicle Details" icon={<Settings className="h-5 w-5" />}>
-        <dl className="grid gap-x-6 gap-y-1 md:grid-cols-2">
-          <InfoRow labelText="Reg Number" value={vehicle.vehicleNumber} />
-          <InfoRow labelText="Fuel Type" value={vehicle.fuelType} />
-          <InfoRow labelText="Car Make / Model" value={vehicleMakeModel(vehicle.brand, vehicle.model)} />
-          <InfoRow labelText="Gear Type" value={vehicle.variant || "-"} />
-          <InfoRow labelText="Year" value={vehicle.year ?? "-"} />
-          <InfoRow labelText="Delivery Date" value={deliveryDate} />
-          <InfoRow labelText="KM Reading" value={vehicle.odometerReading ? `${vehicle.odometerReading.toLocaleString("en-IN")} KM` : "-"} />
-        </dl>
+        <div className="grid gap-3 md:grid-cols-2">
+          <dl className="grid gap-1">
+            <InfoRow labelText="Reg Number" value={vehicle.vehicleNumber} />
+            <InfoRow labelText="Car Make / Model" value={vehicleMakeModel(vehicle.brand, vehicle.model)} />
+            <InfoRow labelText="Year" value={vehicle.year ?? "-"} />
+            <InfoRow labelText="KM Reading" value={vehicle.odometerReading ? `${vehicle.odometerReading.toLocaleString("en-IN")} KM` : "-"} />
+          </dl>
+          <dl className="grid gap-1 md:border-l md:border-[#d9a5b3] md:pl-5">
+            <InfoRow labelText="Fuel Type" value={vehicle.fuelType} />
+            <InfoRow labelText="Gear Type" value={vehicle.variant || "-"} />
+            <InfoRow labelText="Delivery Date" value={deliveryDate} />
+          </dl>
+        </div>
       </DocBox>
     </div>
   );

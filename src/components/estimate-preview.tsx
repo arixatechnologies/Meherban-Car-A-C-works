@@ -42,6 +42,11 @@ export async function EstimatePreview({ id }: { id: string }) {
   const labourTotal = labourItems.reduce((sum, item) => sum + Number(item.amount), 0);
   const discountAmount = Number(estimate.discount);
   const hasDiscount = discountAmount > 0;
+  const paidAmount = Number(estimate.advanceReceived);
+  const returnAmount = Math.max(paidAmount - Number(estimate.totalAmount), 0);
+  const hasReturnAmount = returnAmount > 0;
+  const settlementLabel = hasReturnAmount ? "Return Amount" : "Pending";
+  const settlementValue = hasReturnAmount ? returnAmount : estimate.balanceAmount;
   const allRows = [
     { heading: "Parts / Materials", icon: <Package className="h-5 w-5" />, items: partsItems },
     { heading: "Labour / Services", icon: <Wrench className="h-5 w-5" />, items: labourItems },
@@ -132,7 +137,7 @@ export async function EstimatePreview({ id }: { id: string }) {
           </tbody>
           <tfoot>
             <tr>
-              <td className="border border-[#ead0d8] px-2 py-2" colSpan={3} rowSpan={hasDiscount ? 5 : 4} />
+              <td className="border border-[#ead0d8] px-2 py-2" colSpan={3} rowSpan={hasDiscount ? 7 : 6} />
               <td className="border border-[#ead0d8] px-3 py-1.5 text-right font-bold text-[#7a0d2b]" colSpan={2}>Total Parts Amount (₹)</td>
               <td className="whitespace-nowrap border border-[#ead0d8] px-3 py-1.5 text-right tabular-nums">{moneyText(partsTotal)}</td>
             </tr>
@@ -153,6 +158,21 @@ export async function EstimatePreview({ id }: { id: string }) {
             <tr className={`${maroon} text-base font-black text-white`}>
               <td className="border border-[#ead0d8] px-3 py-2 text-right uppercase" colSpan={2}>Grand Total (₹)</td>
               <td className="whitespace-nowrap border border-[#ead0d8] px-3 py-2 text-right tabular-nums">{moneyText(estimate.totalAmount)}</td>
+            </tr>
+            <tr>
+              <td className="border border-[#ead0d8] px-3 py-1.5 text-right font-bold text-[#7a0d2b]" colSpan={2}>Paid (₹)</td>
+              <td className="whitespace-nowrap border border-[#ead0d8] px-3 py-1.5 text-right tabular-nums">{moneyText(estimate.advanceReceived)}</td>
+            </tr>
+            <tr className={hasReturnAmount ? "" : "bg-[#fff5f5] text-[#991b1b]"}>
+              <td
+                className={`border border-[#ead0d8] px-3 py-1.5 text-right font-bold ${hasReturnAmount ? "text-[#7a0d2b]" : "text-[#991b1b]"}`}
+                colSpan={2}
+              >
+                {settlementLabel} (₹)
+              </td>
+              <td className={`whitespace-nowrap border border-[#ead0d8] px-3 py-1.5 text-right tabular-nums ${hasReturnAmount ? "" : "font-black text-[#991b1b]"}`}>
+                {moneyText(settlementValue)}
+              </td>
             </tr>
           </tfoot>
         </table>

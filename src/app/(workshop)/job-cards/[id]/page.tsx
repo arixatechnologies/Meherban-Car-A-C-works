@@ -1,4 +1,4 @@
-import { Calculator, Edit, Trash2 } from "lucide-react";
+import { Calculator, Edit, FileText, Trash2 } from "lucide-react";
 import { notFound } from "next/navigation";
 import { WhatsAppIcon } from "@/components/action-icons";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
@@ -37,6 +37,11 @@ export default async function JobCardDetailPage({
   const canDelete = user.role === "ADMIN";
   const latestEstimate = jobCard.estimates[0];
   const latestInvoice = jobCard.invoices[0];
+  const invoiceHref = latestInvoice
+    ? `/invoices/${latestInvoice.id}`
+    : latestEstimate
+      ? `/invoices/new?estimateId=${latestEstimate.id}`
+      : `/invoices/new?jobCardId=${jobCard.id}`;
   const hasLinkedRecords = jobCard.estimates.length > 0 || jobCard.invoices.length > 0;
   const deleteDisabled = !canDelete || hasLinkedRecords;
   const deleteDisabledReason = !canDelete
@@ -63,6 +68,10 @@ export default async function JobCardDetailPage({
         <Button href={latestEstimate ? `/estimates/${latestEstimate.id}` : `/estimates/new?jobCardId=${jobCard.id}`}>
           <Calculator className="h-4 w-4" />
           {latestEstimate ? "View Estimation" : "Create Estimation"}
+        </Button>
+        <Button href={invoiceHref}>
+          <FileText className="h-4 w-4" />
+          {latestInvoice ? "View Invoice" : "Create Invoice"}
         </Button>
         <PdfDownloadButton href={`/job-cards/${jobCard.id}/pdf`} className={pdfButtonClass} />
         <a

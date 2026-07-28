@@ -132,6 +132,9 @@ export function JobCardPartsEditor({
   const hasReturnValue = toNumber(returnValue) > 0;
   const settlementLabel = hasReturnValue ? "Return Amount" : "Balance Due";
   const settlementValue = hasReturnValue ? returnValue : balanceValue;
+  const settlementInputClass = hasReturnValue
+    ? inputClass
+    : `${inputClass} border-[#dc2626] bg-[#fff5f5] font-black text-[#991b1b]`;
 
   function updateRow(key: string, field: keyof ObservationRow, value: string) {
     setRows((currentRows) =>
@@ -361,9 +364,15 @@ export function JobCardPartsEditor({
               className={inputClass}
             />
           </label>
-          <label className="grid gap-2 text-sm font-bold text-slate-950">
+          <label
+            className={`grid gap-2 text-sm font-bold ${
+              hasReturnValue
+                ? "text-slate-950"
+                : "rounded-lg border border-[#f4b4b4] bg-[#fff5f5] p-2 text-[#991b1b]"
+            }`}
+          >
             <span>{settlementLabel} {"\u20B9"}</span>
-            <input name="balanceDue" type="text" readOnly value={settlementValue} className={inputClass} />
+            <input name="balanceDue" type="text" readOnly value={settlementValue} className={settlementInputClass} />
           </label>
         </div>
       </section>

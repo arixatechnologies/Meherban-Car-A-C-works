@@ -90,14 +90,18 @@ function InfoRow({
   labelText,
   value,
   valueClassName = "",
+  labelClassName = "",
+  className = "",
 }: {
   labelText: string;
   value: ReactNode;
   valueClassName?: string;
+  labelClassName?: string;
+  className?: string;
 }) {
   return (
-    <div className="grid min-w-0 grid-cols-[118px_10px_minmax(0,1fr)] gap-2 text-[13px] leading-6">
-      <dt className="font-bold text-slate-950">{labelText}</dt>
+    <div className={`grid min-w-0 grid-cols-[118px_10px_minmax(0,1fr)] gap-2 text-[13px] leading-6 ${className}`}>
+      <dt className={`font-bold text-slate-950 ${labelClassName}`}>{labelText}</dt>
       <dd className="font-bold text-slate-700">:</dd>
       <dd className={`min-w-0 break-words text-slate-950 ${valueClassName}`}>{value || "-"}</dd>
     </div>
@@ -196,6 +200,7 @@ export async function JobCardPreview({ id }: { id: string }) {
     amount: item.amount,
   }));
   const commercialItems = invoiceOrEstimateItems.length ? invoiceOrEstimateItems : jobCardObservationItems;
+  const commercialItemsTotal = commercialItems.reduce((sum, item) => sum + decimalToNumber(item.amount), 0);
   const partsItems = commercialItems.filter((item) => normalizeItemCategory(item.category) === "PARTS");
   const labourItems = commercialItems.filter((item) => normalizeItemCategory(item.category) === "LABOUR");
   const groupedCommercialItems = [
@@ -209,17 +214,33 @@ export async function JobCardPreview({ id }: { id: string }) {
   const totalAmount = latestInvoice?.totalAmount ?? latestEstimate?.totalAmount ?? jobCardTotalAmount;
   const paidAmount = latestInvoice?.paidAmount ?? latestEstimate?.advanceReceived ?? jobCardAdvanceAmount;
   const balanceAmount = latestInvoice?.balanceAmount ?? latestEstimate?.balanceAmount ?? jobCardBalanceAmount;
+  const discountAmount = latestInvoice?.discount ?? latestEstimate?.discount;
+  const formattedDiscount = discountAmount && decimalToNumber(discountAmount) > 0 ? formatMoney(discountAmount) : "-";
   const returnAmount =
     totalAmount && paidAmount
       ? Math.max(decimalToNumber(paidAmount) - decimalToNumber(totalAmount), 0)
       : 0;
   const hasReturnAmount = returnAmount > 0;
-  const settlementLabel = hasReturnAmount ? "Return Amount" : "Balance Due";
+  const isPaid = !hasReturnAmount && totalAmount && decimalToNumber(totalAmount) > 0 && decimalToNumber(balanceAmount) <= 0;
+  const settlementLabel = hasReturnAmount ? "Return Amount" : isPaid ? "Paid" : "Balance Due";
   const settlementValue = hasReturnAmount
     ? formatMoney(returnAmount)
+    : isPaid
+      ? formatMoney(paidAmount)
     : balanceAmount
       ? formatMoney(balanceAmount)
       : "-";
+  const settlementHighlightClass = hasReturnAmount
+    ? ""
+    : isPaid
+      ? "rounded-md border border-[#bbf7d0] bg-[#f0fdf4] px-2 py-1"
+      : "rounded-md border border-[#f4b4b4] bg-[#fff5f5] px-2 py-1";
+  const settlementLabelClass = hasReturnAmount ? "" : isPaid ? "text-[#166534]" : "text-[#991b1b]";
+  const settlementValueClass = hasReturnAmount
+    ? "whitespace-nowrap text-right tabular-nums"
+    : isPaid
+      ? "whitespace-nowrap text-right tabular-nums font-black text-[#166534]"
+      : "whitespace-nowrap text-right tabular-nums font-black text-[#991b1b]";
   const paymentModes = latestInvoice?.payments.length
     ? Array.from(new Set(latestInvoice.payments.map((payment) => label(payment.mode)))).join(" / ")
     : jobCard.paymentMode
@@ -431,7 +452,9 @@ export async function JobCardPreview({ id }: { id: string }) {
           <tfoot>
             <tr className="bg-[#fbedf2] text-base font-black text-[#7a0d2b]">
               <td colSpan={5} className="border border-[#ead0d8] px-3 py-2 text-right uppercase">Total</td>
-              <td className="whitespace-nowrap border border-[#ead0d8] px-3 py-2 text-right tabular-nums">{totalAmount ? formatMoney(totalAmount) : "-"}</td>
+              <td className="whitespace-nowrap border border-[#ead0d8] px-3 py-2 text-right tabular-nums">
+                {commercialItems.length ? formatMoney(commercialItemsTotal) : "-"}
+              </td>
             </tr>
           </tfoot>
         </table>
@@ -445,9 +468,15 @@ export async function JobCardPreview({ id }: { id: string }) {
         <dl className="grid gap-3 px-4 py-3 text-[12px] font-semibold sm:grid-cols-2 lg:grid-cols-3 print:grid-cols-3">
           <InfoRow labelText="Total Amount" value={totalAmount ? formatMoney(totalAmount) : "-"} valueClassName="whitespace-nowrap text-right tabular-nums" />
           <InfoRow labelText="Payment Mode" value={paymentModes} />
-          <InfoRow labelText="Job Card Advance" value={jobCardAdvanceAmount ? formatMoney(jobCardAdvanceAmount) : "-"} valueClassName="whitespace-nowrap text-right tabular-nums" />
-          {latestInvoice ? <InfoRow labelText="Invoice Paid" value={formatMoney(latestInvoice.paidAmount)} valueClassName="whitespace-nowrap text-right tabular-nums" /> : null}
-          <InfoRow labelText={settlementLabel} value={settlementValue} valueClassName="whitespace-nowrap text-right tabular-nums" />
+          <InfoRow labelText="Advance Paid" value={jobCardAdvanceAmount ? formatMoney(jobCardAdvanceAmount) : "-"} valueClassName="whitespace-nowrap text-right tabular-nums" />
+          <InfoRow labelText="Discount" value={formattedDiscount} valueClassName="whitespace-nowrap text-right tabular-nums" />
+          <InfoRow
+            labelText={settlementLabel}
+            value={settlementValue}
+            className={settlementHighlightClass}
+            labelClassName={settlementLabelClass}
+            valueClassName={settlementValueClass}
+          />
         </dl>
       </section>
 

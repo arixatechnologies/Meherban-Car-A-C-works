@@ -1,11 +1,10 @@
-import { BadgeIndianRupee, MessageCircle, Package } from "lucide-react";
+import { MessageCircle, Package } from "lucide-react";
 import { notFound } from "next/navigation";
 import {
   CustomerVehicleBlocks,
   DocBox,
   DocumentFooter,
   DocumentHeader,
-  InfoRow,
   NotesAndTerms,
   SignatureRow,
   maroon,
@@ -38,16 +37,25 @@ export async function InvoicePreview({ id }: { id: string }) {
   const serviceAdvisorName = invoice.jobCard.serviceAdvisorName || invoice.serviceAdvisor?.name || "Meharban";
   const workshopName = setting?.workshopName || "Meharban Car A/C Works";
   const complaints = [...invoice.jobCard.complaints, invoice.jobCard.customComplaint].filter(Boolean).join(", ");
-  const paymentModes = invoice.payments.length
-    ? Array.from(new Set(invoice.payments.map((payment) => label(payment.mode)))).join(" / ")
-    : "-";
   const subtotal = invoice.items.reduce((sum, item) => sum + Number(item.amount), 0);
   const discountAmount = Number(invoice.discount);
   const hasDiscount = discountAmount > 0;
   const returnAmount = Math.max(Number(invoice.paidAmount) - Number(invoice.totalAmount), 0);
   const hasReturnAmount = returnAmount > 0;
-  const settlementLabel = hasReturnAmount ? "Return Amount" : "Balance Due";
-  const settlementValue = hasReturnAmount ? returnAmount : invoice.balanceAmount;
+  const isPaid = !hasReturnAmount && Number(invoice.totalAmount) > 0 && Number(invoice.balanceAmount) <= 0;
+  const settlementLabel = hasReturnAmount ? "Return Amount" : isPaid ? "Paid" : "Balance Due";
+  const settlementValue = hasReturnAmount ? returnAmount : isPaid ? invoice.paidAmount : invoice.balanceAmount;
+  const settlementRowClass = hasReturnAmount
+    ? ""
+    : isPaid
+      ? "bg-[#f0fdf4] text-[#166534]"
+      : "bg-[#fff5f5] text-[#991b1b]";
+  const settlementTextClass = hasReturnAmount ? "text-[#7a0d2b]" : isPaid ? "text-[#166534]" : "text-[#991b1b]";
+  const settlementValueClass = hasReturnAmount
+    ? ""
+    : isPaid
+      ? "font-black text-[#166534]"
+      : "font-black text-[#991b1b]";
 
   return (
     <article className="document-lock-font print-page mx-auto max-w-[1120px] rounded-xl border border-[#d8a1b1] bg-white p-5 text-slate-950 shadow-sm print:rounded-none print:p-4">
@@ -58,7 +66,6 @@ export async function InvoicePreview({ id }: { id: string }) {
         rows={[
           { label: "Invoice No.", value: invoice.invoiceNumber },
           { label: "Date", value: formatDate(invoice.invoiceDate) },
-          { label: "Payment Mode", value: paymentModes },
           { label: "Service Advisor", value: serviceAdvisorName },
         ]}
       />
@@ -87,9 +94,8 @@ export async function InvoicePreview({ id }: { id: string }) {
               <th className="border border-[#ead0d8] px-2 py-2">Part / Service</th>
               <th className="border border-[#ead0d8] px-2 py-2">Description</th>
               <th className="border border-[#ead0d8] px-2 py-2">Qty.</th>
-              <th className="border border-[#ead0d8] px-2 py-2">Unit Price (₹)</th>
-              <th className="border border-[#ead0d8] px-2 py-2">Amount (₹)</th>
-              <th className="border border-[#ead0d8] px-2 py-2">Remarks</th>
+              <th className="border border-[#ead0d8] px-2 py-2">Unit Price (&#8377;)</th>
+              <th className="border border-[#ead0d8] px-2 py-2">Amount (&#8377;)</th>
             </tr>
           </thead>
           <tbody>
@@ -105,13 +111,12 @@ export async function InvoicePreview({ id }: { id: string }) {
                     <td className="border border-[#ead0d8] px-2 py-1.5 text-center">{isLabour ? "-" : item.quantity.toString()}</td>
                     <td className="whitespace-nowrap border border-[#ead0d8] px-2 py-1.5 text-right tabular-nums">{isLabour ? "-" : moneyText(item.unitPrice)}</td>
                     <td className="whitespace-nowrap border border-[#ead0d8] px-2 py-1.5 text-right tabular-nums">{moneyText(item.amount)}</td>
-                    <td className="border border-[#ead0d8] px-2 py-1.5 text-center">{item.remarks || label(item.category)}</td>
                   </tr>
                 );
               })
             ) : (
               <tr>
-                <td className="border border-[#ead0d8] px-2 py-4 text-center" colSpan={7}>
+                <td className="border border-[#ead0d8] px-2 py-4 text-center" colSpan={6}>
                   No invoice items added.
                 </td>
               </tr>
@@ -119,43 +124,37 @@ export async function InvoicePreview({ id }: { id: string }) {
           </tbody>
           <tfoot>
             <tr>
-              <td className="border border-[#ead0d8] px-2 py-2" colSpan={4} rowSpan={hasDiscount ? 5 : 4} />
-              <td className="border border-[#ead0d8] px-3 py-1.5 text-right font-bold text-[#7a0d2b]" colSpan={2}>Sub Total (₹)</td>
+              <td className="border border-[#ead0d8] px-2 py-2" colSpan={3} rowSpan={hasDiscount ? 5 : 4} />
+              <td className="border border-[#ead0d8] px-3 py-1.5 text-right font-bold text-[#7a0d2b]" colSpan={2}>Sub Total (&#8377;)</td>
               <td className="whitespace-nowrap border border-[#ead0d8] px-3 py-1.5 text-right tabular-nums">{moneyText(subtotal)}</td>
+            </tr>
+            <tr className={`${maroon} text-base font-black text-white`}>
+              <td className="border border-[#ead0d8] px-3 py-2 text-right uppercase" colSpan={2}>Grand Total (&#8377;)</td>
+              <td className="whitespace-nowrap border border-[#ead0d8] px-3 py-2 text-right tabular-nums">{moneyText(subtotal)}</td>
+            </tr>
+            <tr>
+              <td className="border border-[#ead0d8] px-3 py-1.5 text-right font-bold text-[#7a0d2b]" colSpan={2}>Advance Paid (&#8377;)</td>
+              <td className="whitespace-nowrap border border-[#ead0d8] px-3 py-1.5 text-right tabular-nums">{moneyText(invoice.paidAmount)}</td>
             </tr>
             {hasDiscount ? (
               <tr>
-                <td className="border border-[#ead0d8] px-3 py-1.5 text-right font-bold text-[#7a0d2b]" colSpan={2}>Discount (â‚¹)</td>
+                <td className="border border-[#ead0d8] px-3 py-1.5 text-right font-bold text-[#7a0d2b]" colSpan={2}>Discount (&#8377;)</td>
                 <td className="whitespace-nowrap border border-[#ead0d8] px-3 py-1.5 text-right tabular-nums">- {moneyText(invoice.discount)}</td>
               </tr>
             ) : null}
-            <tr className={`${maroon} text-base font-black text-white`}>
-              <td className="border border-[#ead0d8] px-3 py-2 text-right uppercase" colSpan={2}>Grand Total (₹)</td>
-              <td className="whitespace-nowrap border border-[#ead0d8] px-3 py-2 text-right tabular-nums">{moneyText(invoice.totalAmount)}</td>
-            </tr>
-            <tr>
-              <td className="border border-[#ead0d8] px-3 py-1.5 text-right font-bold text-[#7a0d2b]" colSpan={2}>Advance Paid (₹)</td>
-              <td className="whitespace-nowrap border border-[#ead0d8] px-3 py-1.5 text-right tabular-nums">{moneyText(invoice.paidAmount)}</td>
-            </tr>
-            <tr>
-              <td className="border border-[#ead0d8] px-3 py-1.5 text-right font-bold text-[#7a0d2b]" colSpan={2}>{settlementLabel} (₹)</td>
-              <td className="whitespace-nowrap border border-[#ead0d8] px-3 py-1.5 text-right tabular-nums">{moneyText(settlementValue)}</td>
+            <tr className={settlementRowClass}>
+              <td
+                className={`border border-[#ead0d8] px-3 py-1.5 text-right font-bold ${settlementTextClass}`}
+                colSpan={2}
+              >
+                {settlementLabel} (&#8377;)
+              </td>
+              <td className={`whitespace-nowrap border border-[#ead0d8] px-3 py-1.5 text-right tabular-nums ${settlementValueClass}`}>
+                {moneyText(settlementValue)}
+              </td>
             </tr>
           </tfoot>
         </table>
-      </section>
-
-      <section className={`mt-3 grid overflow-hidden rounded-lg border ${maroonBorder} md:grid-cols-[190px_1fr]`}>
-        <div className={`${maroon} flex items-center gap-2 px-4 py-3 text-sm font-bold uppercase text-white`}>
-          <BadgeIndianRupee className="h-5 w-5" />
-          Payment Details
-        </div>
-        <dl className="grid gap-3 px-4 py-3 text-[12px] font-semibold sm:grid-cols-2 lg:grid-cols-4 print:grid-cols-2">
-          <InfoRow labelText="Total Amount" value={moneyText(invoice.totalAmount)} valueClassName="whitespace-nowrap text-right tabular-nums" />
-          <InfoRow labelText="Paid Via" value={paymentModes} />
-          <InfoRow labelText="Advance" value={moneyText(invoice.paidAmount)} valueClassName="whitespace-nowrap text-right tabular-nums" />
-          <InfoRow labelText={settlementLabel} value={moneyText(settlementValue)} valueClassName="whitespace-nowrap text-right tabular-nums" />
-        </dl>
       </section>
 
       <NotesAndTerms

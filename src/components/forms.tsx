@@ -914,7 +914,19 @@ export function EstimateForm({
               <DocumentTextRow labelText="Gear Type" value={lockedJobCard?.vehicle.variant || "-"} />
               <DocumentTextRow
                 labelText="Delivery Date"
-                value={lockedJobCard?.expectedDeliveryAt ? `${formatDateInput(lockedJobCard.expectedDeliveryAt)} (Expected)` : "-"}
+                value={
+                  lockedJobCard ? (
+                    <input
+                      name="expectedDeliveryDate"
+                      defaultValue={formatDateInput(lockedJobCard.expectedDeliveryAt)}
+                      placeholder="DD/MM/YYYY"
+                      inputMode="numeric"
+                      className={jobCardInputClass}
+                    />
+                  ) : (
+                    "-"
+                  )
+                }
               />
             </div>
           </div>
@@ -926,25 +938,15 @@ export function EstimateForm({
       </FormSection>
 
       <div className="mt-4">
-        <LineItemsEditor items={initialItems} />
+        <LineItemsEditor
+          items={initialItems}
+          showSettlement
+          showDiscount={false}
+          paidName="advanceReceived"
+          paidValue={valueOf(estimate?.advanceReceived) || valueOf(lockedJobCard?.advanceAmount)}
+          paidEditable={false}
+        />
       </div>
-
-      <FormSection title="Payment Details" className="mt-4">
-        <div className="grid gap-4 lg:grid-cols-2">
-          <JobCardField labelText="Discount">
-            <input name="discount" type="number" step="0.01" defaultValue={valueOf(estimate?.discount)} className={jobCardInputClass} />
-          </JobCardField>
-          <JobCardField labelText="Advance Received">
-            <input
-              name="advanceReceived"
-              type="number"
-              step="0.01"
-              defaultValue={valueOf(estimate?.advanceReceived) || valueOf(lockedJobCard?.advanceAmount)}
-              className={jobCardInputClass}
-            />
-          </JobCardField>
-        </div>
-      </FormSection>
 
       <div className="mt-4 grid gap-4 md:grid-cols-2">
         <FormSection title="Important Notes">
@@ -1003,6 +1005,10 @@ export function InvoiceForm({
   const lockedEstimateId = invoice?.estimateId ?? selectedEstimate?.id ?? "";
   const lockedJobCard = jobCards.find((jobCard) => jobCard.id === lockedJobCardId);
   const lockedEstimate = estimates.find((estimate) => estimate.id === lockedEstimateId);
+  const availableEstimates = lockedJobCardId
+    ? estimates.filter((estimateOption) => estimateOption.jobCardId === lockedJobCardId)
+    : estimates;
+  const canSelectEstimate = !lockedEstimateId && (!lockedJobCardId || availableEstimates.length > 0);
   const serviceAdvisorName = lockedJobCard?.serviceAdvisorName || "Meharban";
   const invoiceNumber =
     invoice?.invoiceNumber ||
@@ -1018,6 +1024,8 @@ export function InvoiceForm({
   );
   const complaintText = jobCardComplaint(lockedJobCard);
   const serviceSummary = invoice?.notes || `${complaintText || "Service completed"}${complaintText ? ". " : " "}Service completed and billed as below.`;
+  const invoicePaidAmount =
+    invoice ? valueOf(invoice.paidAmount) : valueOf(lockedJobCard?.advanceAmount);
 
   return (
     <form action={action} className="document-lock-font mx-auto max-w-[1120px] rounded-xl border-2 border-[#d9a5b3] bg-white p-4 shadow-[0_10px_30px_rgba(139,15,47,0.15)]">
@@ -1065,15 +1073,20 @@ export function InvoiceForm({
                     : lockedEstimateId,
                 )}
               </>
-            ) : (
+            ) : canSelectEstimate ? (
               <select name="estimateId" defaultValue={invoice?.estimateId ?? selectedEstimate?.id ?? ""} className={jobCardInputClass}>
                 <option value="">Skipped</option>
-                {estimates.map((estimate) => (
+                {availableEstimates.map((estimate) => (
                   <option key={estimate.id} value={estimate.id}>
                     {estimate.estimateNumber} - {formatMoney(estimate.totalAmount)}
                   </option>
                 ))}
               </select>
+            ) : (
+              <>
+                <input type="hidden" name="estimateId" value="" />
+                {readOnlyValue("Skipped")}
+              </>
             )}
           </JobCardField>
         </div>
@@ -1081,28 +1094,47 @@ export function InvoiceForm({
 
       <div className="mt-4 grid gap-3 md:grid-cols-[0.72fr_1fr]">
         <FormSection title="Customer Details">
-          <div className="grid gap-3">
-            <JobCardInfoRow labelText="Customer Name">{readOnlyValue(lockedJobCard?.customer.name)}</JobCardInfoRow>
-            <JobCardInfoRow labelText="Contact No.">{readOnlyValue(displayNumber(lockedJobCard?.customer.mobile))}</JobCardInfoRow>
-            <JobCardInfoRow labelText="Address">{readOnlyValue(lockedJobCard?.customer.address || lockedJobCard?.customer.city || "-")}</JobCardInfoRow>
+          <div className="grid gap-3 py-1">
+            <DocumentTextRow labelText="Customer Name" value={lockedJobCard?.customer.name} />
+            <DocumentTextRow labelText="Contact No." value={displayNumber(lockedJobCard?.customer.mobile)} />
+            <DocumentTextRow labelText="Address" value={lockedJobCard?.customer.address || lockedJobCard?.customer.city || "-"} />
           </div>
         </FormSection>
 
         <FormSection title="Vehicle Details">
-          <div className="grid gap-3 md:grid-cols-2">
-            <JobCardInfoRow labelText="Reg Number">{readOnlyValue(lockedJobCard?.vehicle.vehicleNumber)}</JobCardInfoRow>
-            <JobCardInfoRow labelText="Fuel Type">{readOnlyValue(lockedJobCard?.vehicle.fuelType)}</JobCardInfoRow>
-            <JobCardInfoRow labelText="Car Make / Model">
-              {readOnlyValue(vehicleMakeModel(lockedJobCard?.vehicle.brand, lockedJobCard?.vehicle.model))}
-            </JobCardInfoRow>
-            <JobCardInfoRow labelText="Gear Type">{readOnlyValue(lockedJobCard?.vehicle.variant || "-")}</JobCardInfoRow>
-            <JobCardInfoRow labelText="Year">{readOnlyValue(lockedJobCard?.vehicle.year ?? "-")}</JobCardInfoRow>
-            <JobCardInfoRow labelText="Delivery Date">
-              {readOnlyValue(lockedJobCard?.expectedDeliveryAt ? formatDateInput(lockedJobCard.expectedDeliveryAt) : "-")}
-            </JobCardInfoRow>
-            <JobCardInfoRow labelText="KM Reading">
-              {readOnlyValue(lockedJobCard?.vehicle.odometerReading ? `${lockedJobCard.vehicle.odometerReading.toLocaleString("en-IN")} KM` : "-")}
-            </JobCardInfoRow>
+          <div className="grid gap-4 py-1 md:grid-cols-2">
+            <div className="grid gap-3">
+              <DocumentTextRow labelText="Reg Number" value={lockedJobCard?.vehicle.vehicleNumber} />
+              <DocumentTextRow
+                labelText="Car Make / Model"
+                value={vehicleMakeModel(lockedJobCard?.vehicle.brand, lockedJobCard?.vehicle.model)}
+              />
+              <DocumentTextRow labelText="Year" value={lockedJobCard?.vehicle.year ?? "-"} />
+              <DocumentTextRow
+                labelText="KM Reading"
+                value={lockedJobCard?.vehicle.odometerReading ? `${lockedJobCard.vehicle.odometerReading.toLocaleString("en-IN")} KM` : "-"}
+              />
+            </div>
+            <div className="grid gap-3 md:border-l md:border-[#d9a5b3] md:pl-8">
+              <DocumentTextRow labelText="Fuel Type" value={lockedJobCard?.vehicle.fuelType} />
+              <DocumentTextRow labelText="Gear Type" value={lockedJobCard?.vehicle.variant || "-"} />
+              <DocumentTextRow
+                labelText="Delivery Date"
+                value={
+                  lockedJobCard ? (
+                    <input
+                      name="expectedDeliveryDate"
+                      defaultValue={formatDateInput(lockedJobCard.expectedDeliveryAt)}
+                      placeholder="DD/MM/YYYY"
+                      inputMode="numeric"
+                      className={jobCardInputClass}
+                    />
+                  ) : (
+                    "-"
+                  )
+                }
+              />
+            </div>
           </div>
         </FormSection>
       </div>
@@ -1112,28 +1144,18 @@ export function InvoiceForm({
       </FormSection>
 
       <div className="mt-4">
-        <LineItemsEditor items={initialItems} showRemarks />
+        <LineItemsEditor
+          items={initialItems}
+          showSettlement
+          showDiscount
+          discountPlacement="afterPaid"
+          discountName="discount"
+          discountValue={valueOf(invoice?.discount)}
+          paidName="paidAmount"
+          paidValue={invoicePaidAmount}
+          paidEditable={false}
+        />
       </div>
-
-      <FormSection title="Payment Details" className="mt-4">
-        <div className="grid gap-4 lg:grid-cols-3">
-          <JobCardField labelText="Discount">
-            <input name="discount" type="number" step="0.01" defaultValue={valueOf(invoice?.discount)} className={jobCardInputClass} />
-          </JobCardField>
-          <JobCardField labelText="Paid Amount">
-            <input
-              name="paidAmount"
-              type="number"
-              step="0.01"
-              defaultValue={valueOf(invoice?.paidAmount) || valueOf(selectedEstimate?.advanceReceived)}
-              className={jobCardInputClass}
-            />
-          </JobCardField>
-          <JobCardField labelText="Delivery Status">
-            <input name="deliveryStatus" defaultValue={invoice?.deliveryStatus ?? "Pending"} className={jobCardInputClass} />
-          </JobCardField>
-        </div>
-      </FormSection>
 
       <div className="mt-4 grid gap-4 md:grid-cols-2">
         <FormSection title="Important Notes">

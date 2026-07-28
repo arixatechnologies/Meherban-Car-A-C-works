@@ -1,7 +1,7 @@
 "use client";
 
 import { Plus, Trash2 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { resolveInspectionItemShortcut } from "@/lib/inspection-shortcuts";
 
 type Decimalish = number | string | { toString(): string } | null | undefined;
@@ -100,11 +100,52 @@ const inputClass =
 export function LineItemsEditor({
   items = [],
   showRemarks = false,
+  showSettlement = false,
+  showDiscount = true,
+  discountPlacement = "beforeGrandTotal",
+  discountName = "discount",
+  discountValue,
+  paidName = "paidAmount",
+  paidValue,
+  paidEditable = true,
 }: {
   items?: EditableLineItem[];
   showRemarks?: boolean;
+  showSettlement?: boolean;
+  showDiscount?: boolean;
+  discountPlacement?: "beforeGrandTotal" | "afterPaid";
+  discountName?: string;
+  discountValue?: Decimalish;
+  paidName?: string;
+  paidValue?: Decimalish;
+  paidEditable?: boolean;
 }) {
+  const editorRef = useRef<HTMLDivElement>(null);
   const [rows, setRows] = useState<Row[]>(items.length ? items.map(normalizeItem) : []);
+  const [discount, setDiscount] = useState(valueOf(discountValue));
+  const [paid, setPaid] = useState(valueOf(paidValue));
+
+  useEffect(() => {
+    if (!showSettlement || showDiscount) return;
+
+    const formElement = editorRef.current?.closest("form");
+    if (!(formElement instanceof HTMLFormElement)) return;
+    const form = formElement;
+
+    function syncExternalDiscount() {
+      const discountInput = form.querySelector<HTMLInputElement>(`input[name="${discountName}"]`);
+      setDiscount(discountInput?.value ?? valueOf(discountValue));
+    }
+
+    syncExternalDiscount();
+    form.addEventListener("input", syncExternalDiscount);
+    form.addEventListener("change", syncExternalDiscount);
+
+    return () => {
+      form.removeEventListener("input", syncExternalDiscount);
+      form.removeEventListener("change", syncExternalDiscount);
+    };
+  }, [discountName, discountValue, showDiscount, showSettlement]);
 
   const totals = useMemo(() => {
     return rows.reduce(
@@ -117,6 +158,12 @@ export function LineItemsEditor({
       { parts: 0, labour: 0 },
     );
   }, [rows]);
+  const subtotal = totals.parts + totals.labour;
+  const discountAmount = showSettlement ? numberFrom(discount) : 0;
+  const paidAmount = numberFrom(paid);
+  const grandTotal = Math.max(subtotal - discountAmount, 0);
+  const displayedGrandTotal = discountPlacement === "afterPaid" ? subtotal : grandTotal;
+  const remainingAmount = Math.max(grandTotal - paidAmount, 0);
 
   function addRow(category: Row["category"]) {
     setRows((current) => [...current, blankRow(category)]);
@@ -139,6 +186,22 @@ export function LineItemsEditor({
 
   function removeRow(id: string) {
     setRows((current) => current.filter((row) => row.id !== id));
+  }
+
+  function discountField(className = "") {
+    return (
+      <label className={`grid grid-cols-[1fr_150px] items-center gap-3 ${className}`}>
+        <span>Discount (&#8377;)</span>
+        <input
+          name={discountName}
+          type="text"
+          inputMode="decimal"
+          value={discount}
+          onChange={(event) => setDiscount(event.target.value)}
+          className={`${inputClass} text-right`}
+        />
+      </label>
+    );
   }
 
   function section(category: Row["category"], title: string, empty: string) {
@@ -292,7 +355,7 @@ export function LineItemsEditor({
   }
 
   return (
-    <div className="grid gap-4">
+    <div ref={editorRef} className="grid gap-4">
       {section("PARTS", "Parts / Materials", "Click Add Part / Material to enter items.")}
       {section("LABOUR", "Labour / Services", "Click Add Labour / Service to enter items.")}
       <div className="ml-auto grid w-full max-w-sm gap-2 rounded-lg border-[1.5px] border-[#d9a5b3] bg-[#fff3f6] p-4 text-sm font-bold text-[#650820]">
@@ -304,10 +367,48 @@ export function LineItemsEditor({
           <span>Labour Total</span>
           <strong>{money(totals.labour)}</strong>
         </div>
-        <div className="flex justify-between border-t border-[#d9a5b3] pt-2 text-base">
-          <span>Grand Total</span>
-          <strong>{money(totals.parts + totals.labour)}</strong>
-        </div>
+        {showSettlement ? (
+          <>
+            {showDiscount && discountPlacement === "beforeGrandTotal" ? discountField("border-t border-[#d9a5b3] pt-2") : null}
+            <div
+              className={`flex justify-between text-base ${
+                showDiscount && discountPlacement === "beforeGrandTotal" ? "" : "border-t border-[#d9a5b3] pt-2"
+              }`}
+            >
+              <span>Grand Total</span>
+              <strong>{money(displayedGrandTotal)}</strong>
+            </div>
+            {paidEditable ? (
+              <label className="grid grid-cols-[1fr_150px] items-center gap-3">
+                <span>Paid</span>
+                <input
+                  name={paidName}
+                  type="text"
+                  inputMode="decimal"
+                  value={paid}
+                  onChange={(event) => setPaid(event.target.value)}
+                  className={`${inputClass} text-right`}
+                />
+              </label>
+            ) : (
+              <div className="flex justify-between">
+                <input type="hidden" name={paidName} value={paid} readOnly />
+                <span>Paid</span>
+                <strong>{money(paidAmount)}</strong>
+              </div>
+            )}
+            {showDiscount && discountPlacement === "afterPaid" ? discountField() : null}
+            <div className="flex justify-between border-t border-[#d9a5b3] pt-2 text-base">
+              <span>Remaining</span>
+              <strong>{money(remainingAmount)}</strong>
+            </div>
+          </>
+        ) : (
+          <div className="flex justify-between border-t border-[#d9a5b3] pt-2 text-base">
+            <span>Grand Total</span>
+            <strong>{money(subtotal)}</strong>
+          </div>
+        )}
       </div>
     </div>
   );

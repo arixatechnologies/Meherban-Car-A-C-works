@@ -77,6 +77,7 @@ const expectedActionMessages = new Set([
   "Delete linked invoices before deleting this estimate.",
   "Delete is blocked because payments are recorded for this invoice.",
   "Add at least one parts/materials or labour item.",
+  "Selected estimate does not belong to selected job card.",
   "Select an invoice before recording payment.",
   "Payment amount must be greater than zero.",
   "Payment amount cannot be more than the invoice balance due.",
@@ -260,6 +261,20 @@ function optionalDocumentDate(value: string) {
   }
 
   return date;
+}
+
+function nullableDocumentDateFromForm(formData: FormData, key: string) {
+  if (!formData.has(key)) return undefined;
+  return str(formData, key) ? optionalDocumentDate(str(formData, key)) : null;
+}
+
+async function updateJobCardExpectedDeliveryDate(jobCardId: string, expectedDeliveryAt: Date | null | undefined) {
+  if (expectedDeliveryAt === undefined) return;
+
+  await prisma.jobCard.update({
+    where: { id: jobCardId },
+    data: { expectedDeliveryAt },
+  });
 }
 
 function decimal(value: string) {
@@ -653,6 +668,59 @@ function paymentStatusFor(total: Prisma.Decimal, paid: Prisma.Decimal) {
   return InvoicePaymentStatus.UNPAID;
 }
 
+function sumPayments(payments: { amount: Prisma.Decimal }[]) {
+  return payments.reduce((sum, payment) => sum.add(payment.amount), new Prisma.Decimal(0));
+}
+
+async function syncJobCardAdvanceToBilling(jobCardId: string, advanceAmount: Prisma.Decimal) {
+  const [estimates, invoices] = await Promise.all([
+    prisma.estimate.findMany({
+      where: { jobCardId },
+      select: { id: true, totalAmount: true },
+    }),
+    prisma.invoice.findMany({
+      where: { jobCardId },
+      select: {
+        id: true,
+        totalAmount: true,
+        payments: { select: { amount: true } },
+      },
+    }),
+  ]);
+
+  await Promise.all([
+    ...estimates.map((estimate) =>
+      prisma.estimate.update({
+        where: { id: estimate.id },
+        data: {
+          advanceReceived: advanceAmount,
+          balanceAmount: nonNegative(estimate.totalAmount.sub(advanceAmount)),
+        },
+      }),
+    ),
+    ...invoices.map((invoice) => {
+      const paidAmount = advanceAmount.add(sumPayments(invoice.payments));
+      const balanceAmount = nonNegative(invoice.totalAmount.sub(paidAmount));
+
+      return prisma.invoice.update({
+        where: { id: invoice.id },
+        data: {
+          paidAmount,
+          balanceAmount,
+          paymentStatus: paymentStatusFor(invoice.totalAmount, paidAmount),
+        },
+      });
+    }),
+  ]);
+
+  for (const estimate of estimates) {
+    revalidatePath(`/estimates/${estimate.id}`);
+  }
+  for (const invoice of invoices) {
+    revalidatePath(`/invoices/${invoice.id}`);
+  }
+}
+
 export async function loginAction(
   _prevState: AuthActionState,
   formData: FormData,
@@ -978,6 +1046,10 @@ export async function saveJobCard(id: string | null, formData: FormData) {
       });
     }
 
+    await syncJobCardAdvanceToBilling(id, advanceAmount);
+    revalidatePath("/");
+    revalidatePath("/estimates");
+    revalidatePath("/invoices");
     revalidatePath(`/job-cards/${id}`);
     redirect(`/job-cards/${id}`);
   }
@@ -1215,6 +1287,7 @@ export async function saveEstimate(id: string | null, formData: FormData) {
   const balanceAmount = nonNegative(totalAmount.sub(advanceReceived));
   const status = (str(formData, "status") || "DRAFT") as EstimateStatus;
   const estimateDate = optionalDocumentDate(str(formData, "estimateDate"));
+  const expectedDeliveryAt = nullableDocumentDateFromForm(formData, "expectedDeliveryDate");
   const problemSummary =
     optional(str(formData, "problemSummary")) ||
     [...jobCard.complaints, jobCard.customComplaint].filter(Boolean).join(", ") ||
@@ -1246,6 +1319,7 @@ export async function saveEstimate(id: string | null, formData: FormData) {
         },
       },
     });
+    await updateJobCardExpectedDeliveryDate(jobCardId, expectedDeliveryAt);
 
     revalidatePath("/");
     revalidatePath(`/estimates/${id}`);
@@ -1280,6 +1354,7 @@ export async function saveEstimate(id: string | null, formData: FormData) {
           data: { status: JobCardStatus.ESTIMATE_SHARED },
         });
       }
+      await updateJobCardExpectedDeliveryDate(jobCardId, expectedDeliveryAt);
 
       const setting = await prisma.workshopSetting.findUnique({ where: { singletonKey: "default" } });
       if (
@@ -1312,6 +1387,7 @@ export async function saveEstimate(id: string | null, formData: FormData) {
       data: { status: JobCardStatus.ESTIMATE_SHARED },
     });
   }
+  await updateJobCardExpectedDeliveryDate(jobCardId, expectedDeliveryAt);
 
   const setting = await prisma.workshopSetting.findUnique({ where: { singletonKey: "default" } });
   if (setting?.autoSendEstimateMessage && status === EstimateStatus.SHARED) {
@@ -1413,6 +1489,10 @@ export async function saveInvoice(id: string | null, formData: FormData) {
       })
     : null;
   const jobCardId = str(formData, "jobCardId") || estimate?.jobCardId || "";
+  if (estimate && estimate.jobCardId !== jobCardId) {
+    throw new Error("Selected estimate does not belong to selected job card.");
+  }
+
   const jobCard = await prisma.jobCard.findUniqueOrThrow({
     where: { id: jobCardId },
     include: { customer: true, vehicle: true },
@@ -1440,6 +1520,13 @@ export async function saveInvoice(id: string | null, formData: FormData) {
   const totalAmount = nonNegative(subtotal.sub(discount));
   const balanceAmount = nonNegative(totalAmount.sub(paidAmount));
   const invoiceDate = optionalDocumentDate(str(formData, "invoiceDate"));
+  const expectedDeliveryAt = nullableDocumentDateFromForm(formData, "expectedDeliveryDate");
+  const currentInvoice = id
+    ? await prisma.invoice.findUnique({
+        where: { id },
+        select: { deliveryStatus: true },
+      })
+    : null;
 
   const data = {
     jobCardId,
@@ -1453,7 +1540,7 @@ export async function saveInvoice(id: string | null, formData: FormData) {
     paidAmount,
     balanceAmount,
     paymentStatus: paymentStatusFor(totalAmount, paidAmount),
-    deliveryStatus: str(formData, "deliveryStatus") || "Pending",
+    deliveryStatus: str(formData, "deliveryStatus") || currentInvoice?.deliveryStatus || "Pending",
     notes: optional(str(formData, "notes")),
   };
 
@@ -1468,6 +1555,7 @@ export async function saveInvoice(id: string | null, formData: FormData) {
         },
       },
     });
+    await updateJobCardExpectedDeliveryDate(jobCardId, expectedDeliveryAt);
     revalidatePath("/");
     revalidatePath(`/invoices/${id}`);
     revalidatePath(`/job-cards/${jobCardId}`);
@@ -1501,6 +1589,7 @@ export async function saveInvoice(id: string | null, formData: FormData) {
         data: {
           status:
             balanceAmount.greaterThan(0) ? JobCardStatus.PAYMENT_PENDING : JobCardStatus.INVOICE_GENERATED,
+          ...(expectedDeliveryAt !== undefined ? { expectedDeliveryAt } : {}),
         },
       });
 
@@ -1533,6 +1622,7 @@ export async function saveInvoice(id: string | null, formData: FormData) {
     data: {
       status:
         balanceAmount.greaterThan(0) ? JobCardStatus.PAYMENT_PENDING : JobCardStatus.INVOICE_GENERATED,
+      ...(expectedDeliveryAt !== undefined ? { expectedDeliveryAt } : {}),
     },
   });
 
@@ -1601,12 +1691,12 @@ async function recordPaymentMutation(formData: FormData) {
 
   const invoice = await prisma.invoice.findUniqueOrThrow({
     where: { id: invoiceId },
-    include: { payments: true },
+    include: {
+      payments: true,
+      jobCard: { select: { advanceAmount: true } },
+    },
   });
-  const paidBefore = invoice.payments.reduce(
-    (sum, payment) => sum.add(payment.amount),
-    new Prisma.Decimal(0),
-  );
+  const paidBefore = invoice.jobCard.advanceAmount.add(sumPayments(invoice.payments));
   const paidAmount = paidBefore.add(amount);
   if (paidAmount.greaterThan(invoice.totalAmount)) {
     throw new Error("Payment amount cannot be more than the invoice balance due.");
@@ -1685,6 +1775,7 @@ export async function deletePayment(id: string) {
           estimateId: true,
           jobCardId: true,
           totalAmount: true,
+          jobCard: { select: { advanceAmount: true } },
         },
       },
     },
@@ -1701,7 +1792,7 @@ export async function deletePayment(id: string) {
       where: { invoiceId: payment.invoiceId },
       _sum: { amount: true },
     });
-    const paidAmount = remainingPayments._sum.amount ?? new Prisma.Decimal(0);
+    const paidAmount = payment.invoice.jobCard.advanceAmount.add(remainingPayments._sum.amount ?? new Prisma.Decimal(0));
     const balanceAmount = nonNegative(payment.invoice.totalAmount.sub(paidAmount));
 
     await tx.invoice.update({
