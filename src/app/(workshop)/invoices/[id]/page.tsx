@@ -58,14 +58,25 @@ export default async function InvoiceDetailPage({
   const deleteDisabledReason = !canDelete
     ? "Only admin can delete invoices."
     : "Delete recorded payments first.";
+  const paymentComplete = Number(invoice.balanceAmount) <= 0;
 
   return (
     <div className="grid gap-4">
       <div className="no-print mx-auto flex w-full max-w-[1120px] flex-wrap items-center justify-end gap-2 rounded-xl border border-[#e7c9c1] bg-[#fffaf5] p-3 shadow-[0_10px_28px_rgba(90,23,59,0.08)]">
-        <Button href={`/payments/new?invoiceId=${invoice.id}`}>
-          <CreditCard className="h-4 w-4" />
-          Record Payment
-        </Button>
+        {paymentComplete ? (
+          <span
+            className="inline-flex h-10 cursor-not-allowed items-center justify-center gap-2 rounded-lg bg-[#d8cec8] px-4 text-sm font-bold text-[#7b6b72]"
+            title="Invoice is already paid."
+          >
+            <CreditCard className="h-4 w-4" />
+            Record Payment
+          </span>
+        ) : (
+          <Button href={`/payments/new?invoiceId=${invoice.id}`}>
+            <CreditCard className="h-4 w-4" />
+            Record Payment
+          </Button>
+        )}
         <PdfDownloadButton href={`/invoices/${invoice.id}/pdf`} className={pdfButtonClass} />
         <a
           href={createWhatsAppLink(invoice.customer.whatsapp || invoice.customer.mobile, message)}

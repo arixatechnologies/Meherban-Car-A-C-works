@@ -1,5 +1,6 @@
 import { Plus } from "lucide-react";
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { PreviewIcon, WhatsAppIcon } from "@/components/action-icons";
 import { PdfDownloadButton } from "@/components/pdf-download-button";
 import { StatusMessageControl } from "@/components/status-message-control";
@@ -42,6 +43,17 @@ function iconActionClass(tone: "view" | "pdf" | "whatsapp") {
     tone === "view" && "border-[#c8b2d3] bg-[#f5edf8] text-[#5a173b] hover:bg-[#eadce9] focus:ring-[#bca2c9]",
     tone === "pdf" && "border-[#f1b8b8] bg-[#fff0f0] text-[#c62828] hover:bg-[#ffe0e0] focus:ring-[#e05252]",
     tone === "whatsapp" && "border-[#9bd7ad] bg-[#e8f8ed] text-[#128c3a] hover:bg-[#d8f2df] focus:ring-[#25d366]",
+  );
+}
+
+function documentCellLink(href: string, children: ReactNode) {
+  return (
+    <Link
+      href={href}
+      className="block -mx-4 -my-3 px-4 py-3 text-inherit transition hover:text-[#5a173b]"
+    >
+      {children}
+    </Link>
   );
 }
 
@@ -383,15 +395,17 @@ export async function BillingWorkspace({
             headers={["Document", "Car Make / Model", "Phone", "Vehicle", "Date", "Status", "Actions"]}
             empty="No billing documents found."
             rows={documents.map((document) => [
-              <Link key="number" href={document.href} className="font-black text-[#5a173b] hover:underline">
-                {document.number}
-              </Link>,
-              document.vehicleName,
-              <a key="phone" href={`tel:${document.mobileNumber}`} className="font-black text-[#5a173b] hover:underline">
-                {document.mobileNumber}
-              </a>,
-              document.vehicleNumber,
-              formatDate(document.sortDate),
+              documentCellLink(
+                document.href,
+                <span className="font-black text-[#5a173b] hover:underline">{document.number}</span>,
+              ),
+              documentCellLink(document.href, document.vehicleName),
+              documentCellLink(
+                document.href,
+                <span className="font-black text-[#5a173b] hover:underline">{document.mobileNumber}</span>,
+              ),
+              documentCellLink(document.href, document.vehicleNumber),
+              documentCellLink(document.href, formatDate(document.sortDate)),
               <div key="status">{document.statusNode}</div>,
               <div key="actions" className="flex items-center gap-2">
                 <Link href={document.href} className={iconActionClass("view")} title="View">

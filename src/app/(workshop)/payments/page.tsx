@@ -1,14 +1,27 @@
 import Link from "next/link";
 import { Trash2 } from "lucide-react";
+import type { ReactNode } from "react";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { Button, Card, CardBody, CardHeader, DataTable, PageHeader, SearchBar } from "@/components/ui";
 import { deletePayment } from "@/lib/actions";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { formatDate, formatMoney } from "@/lib/format";
+import { label } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
+
+function paymentCellLink(href: string, children: ReactNode) {
+  return (
+    <Link
+      href={href}
+      className="block -mx-4 -my-3 px-4 py-3 text-inherit transition hover:text-[#5a173b]"
+    >
+      {children}
+    </Link>
+  );
+}
 
 export default async function PaymentsPage({
   searchParams,
@@ -29,7 +42,7 @@ export default async function PaymentsPage({
             ],
           }
         : undefined,
-      include: { invoice: true, customer: true, collectedBy: true },
+      include: { invoice: { include: { jobCard: true } }, customer: true, collectedBy: true },
       orderBy: { paymentDate: "desc" },
     }),
   ]);
@@ -42,19 +55,34 @@ export default async function PaymentsPage({
         <CardHeader title="Payment History" action={<SearchBar defaultValue={q} placeholder="Search invoice, customer, reference" />} />
         <CardBody>
           <DataTable
-            headers={["Date", "Invoice", "Customer", "Amount", "Mode", "Collected By", "Action"]}
+            headers={[
+              "Date",
+              "Invoice",
+              "Customer",
+              "Advance Paid",
+              "Advance Mode",
+              "Remaining Paid",
+              "Remaining Mode",
+              "Collected By",
+              "Action",
+            ]}
             empty="No payments found."
             rows={payments.map((payment) => [
-              formatDate(payment.paymentDate),
-              payment.invoice.invoiceNumber,
-              payment.customer.name,
-              formatMoney(payment.amount),
-              payment.mode,
-              payment.collectedBy?.name ?? "-",
+              paymentCellLink(`/payments/${payment.id}`, formatDate(payment.paymentDate)),
+              paymentCellLink(
+                `/payments/${payment.id}`,
+                <span className="font-black text-[#5a173b] hover:underline">{payment.invoice.invoiceNumber}</span>,
+              ),
+              paymentCellLink(`/payments/${payment.id}`, payment.customer.name),
+              paymentCellLink(`/payments/${payment.id}`, formatMoney(payment.invoice.jobCard.advanceAmount)),
+              paymentCellLink(
+                `/payments/${payment.id}`,
+                payment.invoice.jobCard.paymentMode ? label(payment.invoice.jobCard.paymentMode) : "-",
+              ),
+              paymentCellLink(`/payments/${payment.id}`, formatMoney(payment.amount)),
+              paymentCellLink(`/payments/${payment.id}`, label(payment.mode)),
+              paymentCellLink(`/payments/${payment.id}`, payment.collectedBy?.name ?? "-"),
               <div key="actions" className="flex flex-wrap items-center gap-2">
-                <Link href={`/payments/${payment.id}`} className="font-bold text-[#5a173b] hover:underline">
-                  View
-                </Link>
                 <form action={deletePayment.bind(null, payment.id)}>
                   <ConfirmSubmitButton
                     confirmMessage="Delete this payment? Invoice paid amount and balance will be recalculated."

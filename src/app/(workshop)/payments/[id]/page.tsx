@@ -6,6 +6,7 @@ import { deletePayment } from "@/lib/actions";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { formatDate, formatMoney } from "@/lib/format";
+import { label } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -20,7 +21,7 @@ export default async function PaymentDetailPage({
     requireUser(),
     prisma.payment.findUnique({
       where: { id },
-      include: { invoice: true, customer: true, collectedBy: true },
+      include: { invoice: { include: { jobCard: true } }, customer: true, collectedBy: true },
     }),
   ]);
 
@@ -52,8 +53,10 @@ export default async function PaymentDetailPage({
           <DetailGrid>
             <DetailItem labelText="Invoice" value={payment.invoice.invoiceNumber} />
             <DetailItem labelText="Customer" value={payment.customer.name} />
-            <DetailItem labelText="Amount" value={formatMoney(payment.amount)} />
-            <DetailItem labelText="Mode" value={payment.mode} />
+            <DetailItem labelText="Advance Paid" value={formatMoney(payment.invoice.jobCard.advanceAmount)} />
+            <DetailItem labelText="Advance Mode" value={payment.invoice.jobCard.paymentMode ? label(payment.invoice.jobCard.paymentMode) : "-"} />
+            <DetailItem labelText="Remaining Payment" value={formatMoney(payment.amount)} />
+            <DetailItem labelText="Remaining Mode" value={label(payment.mode)} />
             <DetailItem labelText="Reference number" value={payment.referenceNumber} />
             <DetailItem labelText="Collected by" value={payment.collectedBy?.name} />
             <DetailItem labelText="Notes" value={payment.notes} />

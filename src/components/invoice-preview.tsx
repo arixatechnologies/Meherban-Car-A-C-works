@@ -56,6 +56,7 @@ export async function InvoicePreview({ id }: { id: string }) {
     : isPaid
       ? "font-black text-[#166534]"
       : "font-black text-[#991b1b]";
+  const settlementSizeClass = isPaid ? "text-lg" : "";
 
   return (
     <article className="document-lock-font print-page mx-auto max-w-[1120px] rounded-xl border border-[#d8a1b1] bg-white p-5 text-slate-950 shadow-sm print:rounded-none print:p-4">
@@ -134,7 +135,7 @@ export async function InvoicePreview({ id }: { id: string }) {
             </tr>
             <tr>
               <td className="border border-[#ead0d8] px-3 py-1.5 text-right font-bold text-[#7a0d2b]" colSpan={2}>Advance Paid (&#8377;)</td>
-              <td className="whitespace-nowrap border border-[#ead0d8] px-3 py-1.5 text-right tabular-nums">{moneyText(invoice.paidAmount)}</td>
+              <td className="whitespace-nowrap border border-[#ead0d8] px-3 py-1.5 text-right tabular-nums">{moneyText(invoice.jobCard.advanceAmount)}</td>
             </tr>
             {hasDiscount ? (
               <tr>
@@ -144,12 +145,12 @@ export async function InvoicePreview({ id }: { id: string }) {
             ) : null}
             <tr className={settlementRowClass}>
               <td
-                className={`border border-[#ead0d8] px-3 py-1.5 text-right font-bold ${settlementTextClass}`}
+                className={`border border-[#ead0d8] px-3 py-1.5 text-right font-bold ${settlementTextClass} ${settlementSizeClass}`}
                 colSpan={2}
               >
                 {settlementLabel} (&#8377;)
               </td>
-              <td className={`whitespace-nowrap border border-[#ead0d8] px-3 py-1.5 text-right tabular-nums ${settlementValueClass}`}>
+              <td className={`whitespace-nowrap border border-[#ead0d8] px-3 py-1.5 text-right tabular-nums ${settlementValueClass} ${settlementSizeClass}`}>
                 {moneyText(settlementValue)}
               </td>
             </tr>
