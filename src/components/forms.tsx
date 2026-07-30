@@ -63,6 +63,7 @@ type JobCardOption = {
   customComplaint?: string | null;
   workSuggested?: string | null;
   partsRequired?: string | null;
+  discount?: Decimalish;
   advanceAmount?: Decimalish;
   customer: {
     name: string;
@@ -373,6 +374,7 @@ export function JobCardForm({
     internalNotes: string | null;
     finalQcBy: string | null;
     estimatedTotalAmount: Decimalish;
+    discount: Decimalish;
     advanceAmount: Decimalish;
     balanceDue: Decimalish;
     paymentMode: string | null;
@@ -720,6 +722,7 @@ export function JobCardForm({
       <JobCardPartsEditor
         observations={serviceObservations}
         totalAmount={valueOf(jobCard?.estimatedTotalAmount)}
+        discountAmount={valueOf(jobCard?.discount)}
         advanceAmount={valueOf(jobCard?.advanceAmount)}
         balanceDue={valueOf(jobCard?.balanceDue)}
         paymentMode={jobCard?.paymentMode}
@@ -1150,7 +1153,7 @@ export function InvoiceForm({
           showDiscount
           discountPlacement="afterPaid"
           discountName="discount"
-          discountValue={valueOf(invoice?.discount)}
+          discountValue={invoice ? valueOf(invoice.discount) : valueOf(lockedJobCard?.discount)}
           paidName="paidAmount"
           paidValue={invoicePaidAmount}
           paidEditable={false}

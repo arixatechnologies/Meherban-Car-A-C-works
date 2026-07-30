@@ -214,7 +214,12 @@ export async function JobCardPreview({ id }: { id: string }) {
   const totalAmount = latestInvoice?.totalAmount ?? latestEstimate?.totalAmount ?? jobCardTotalAmount;
   const paidAmount = latestInvoice?.paidAmount ?? latestEstimate?.advanceReceived ?? jobCardAdvanceAmount;
   const balanceAmount = latestInvoice?.balanceAmount ?? latestEstimate?.balanceAmount ?? jobCardBalanceAmount;
-  const discountAmount = latestInvoice?.discount ?? latestEstimate?.discount;
+  const invoiceDiscountAmount =
+    latestInvoice && decimalToNumber(latestInvoice.discount) > 0 ? latestInvoice.discount : undefined;
+  const estimateDiscountAmount =
+    latestEstimate && decimalToNumber(latestEstimate.discount) > 0 ? latestEstimate.discount : undefined;
+  const jobCardDiscountAmount = decimalToNumber(jobCard.discount) > 0 ? jobCard.discount : undefined;
+  const discountAmount = invoiceDiscountAmount ?? estimateDiscountAmount ?? jobCardDiscountAmount;
   const formattedDiscount = discountAmount && decimalToNumber(discountAmount) > 0 ? formatMoney(discountAmount) : "-";
   const returnAmount =
     totalAmount && paidAmount

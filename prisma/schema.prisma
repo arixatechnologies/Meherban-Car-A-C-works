@@ -197,6 +197,7 @@ model JobCard {
   internalNotes         String?
   finalQcBy             String?
   estimatedTotalAmount  Decimal                     @default(0) @db.Decimal(12, 2)
+  discount              Decimal                     @default(0) @db.Decimal(12, 2)
   advanceAmount         Decimal                     @default(0) @db.Decimal(12, 2)
   balanceDue            Decimal                     @default(0) @db.Decimal(12, 2)
   paymentMode           PaymentMode?

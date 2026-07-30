@@ -91,17 +91,20 @@ function makeInitialRows(observations: InitialObservation[] | undefined) {
 export function JobCardPartsEditor({
   observations,
   totalAmount,
+  discountAmount,
   advanceAmount,
   balanceDue,
   paymentMode,
 }: {
   observations?: InitialObservation[];
   totalAmount?: Decimalish;
+  discountAmount?: Decimalish;
   advanceAmount?: Decimalish;
   balanceDue?: Decimalish;
   paymentMode?: string | null;
 }) {
   const [rows, setRows] = useState<ObservationRow[]>(() => makeInitialRows(observations));
+  const [discount, setDiscount] = useState(() => toInputValue(discountAmount));
   const [advance, setAdvance] = useState(() => toInputValue(advanceAmount));
 
   const totals = useMemo(
@@ -119,7 +122,9 @@ export function JobCardPartsEditor({
   );
   const rowsTotal = totals.parts + totals.labour;
   const savedTotal = toInputValue(totalAmount);
-  const totalValue = rows.length ? moneyInput(rowsTotal) : savedTotal;
+  const discountValue = Math.max(toNumber(discount), 0);
+  const payableTotal = Math.max(rowsTotal - discountValue, 0);
+  const totalValue = rows.length ? moneyInput(payableTotal) : savedTotal;
   const balanceValue = useMemo(() => {
     const submittedBalance = toInputValue(balanceDue);
     if (submittedBalance && !rows.length && !totalValue) return submittedBalance;
@@ -317,9 +322,20 @@ export function JobCardPartsEditor({
               <span>Labour Total</span>
               <strong className="whitespace-nowrap tabular-nums">{money(totals.labour)}</strong>
             </div>
+            <label className="grid grid-cols-[1fr_150px] items-center gap-3 border-t border-[#d9a5b3] pt-2">
+              <span>Discount {"\u20B9"}</span>
+              <input
+                name="discount"
+                type="text"
+                inputMode="decimal"
+                value={discount}
+                onChange={(event) => setDiscount(event.target.value)}
+                className={`${inputClass} text-right`}
+              />
+            </label>
             <div className="flex justify-between gap-4 border-t border-[#d9a5b3] pt-2 text-base">
               <span>Grand Total</span>
-              <strong className="whitespace-nowrap tabular-nums">{money(rowsTotal)}</strong>
+              <strong className="whitespace-nowrap tabular-nums">{money(payableTotal)}</strong>
             </div>
           </div>
         </div>
