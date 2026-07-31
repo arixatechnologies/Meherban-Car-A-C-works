@@ -92,8 +92,8 @@ export async function EstimatePreview({ id }: { id: string }) {
               <th className="border border-[#ead0d8] px-2 py-2">Part / Service</th>
               <th className="border border-[#ead0d8] px-2 py-2">Description</th>
               <th className="border border-[#ead0d8] px-2 py-2">Qty</th>
-              <th className="border border-[#ead0d8] px-2 py-2">Unit Price (₹)</th>
-              <th className="border border-[#ead0d8] px-2 py-2">Amount (₹)</th>
+              <th className="border border-[#ead0d8] px-2 py-2">Unit Price (&#8377;)</th>
+              <th className="border border-[#ead0d8] px-2 py-2">Amount (&#8377;)</th>
             </tr>
           </thead>
           <tbody>
@@ -115,11 +115,15 @@ export async function EstimatePreview({ id }: { id: string }) {
                       <tr key={item.id}>
                         <td className="border border-[#ead0d8] px-2 py-1.5 text-center">{rowNumber}</td>
                         <td className="border border-[#ead0d8] px-2 py-1.5">{item.partService || item.description}</td>
-                        <td className="border border-[#ead0d8] px-2 py-1.5">
+                        <td className="border border-[#ead0d8] px-2 py-1.5" colSpan={isLabour ? 3 : 1}>
                           {item.partService ? item.description : item.category === ItemCategory.PARTS ? "Parts / Materials" : "Labour / Service"}
                         </td>
-                        <td className="border border-[#ead0d8] px-2 py-1.5 text-center">{isLabour ? "-" : item.quantity.toString()}</td>
-                        <td className="whitespace-nowrap border border-[#ead0d8] px-2 py-1.5 text-right tabular-nums">{isLabour ? "-" : moneyText(item.unitPrice)}</td>
+                        {!isLabour ? (
+                          <>
+                            <td className="border border-[#ead0d8] px-2 py-1.5 text-center">{item.quantity.toString()}</td>
+                            <td className="whitespace-nowrap border border-[#ead0d8] px-2 py-1.5 text-right tabular-nums">{moneyText(item.unitPrice)}</td>
+                          </>
+                        ) : null}
                         <td className="whitespace-nowrap border border-[#ead0d8] px-2 py-1.5 text-right tabular-nums">{moneyText(item.amount)}</td>
                       </tr>
                     );
@@ -138,29 +142,29 @@ export async function EstimatePreview({ id }: { id: string }) {
           <tfoot>
             <tr>
               <td className="border border-[#ead0d8] px-2 py-2" colSpan={3} rowSpan={hasDiscount ? 7 : 6} />
-              <td className="border border-[#ead0d8] px-3 py-1.5 text-right font-bold text-[#7a0d2b]" colSpan={2}>Total Parts Amount (₹)</td>
+              <td className="border border-[#ead0d8] px-3 py-1.5 text-right font-bold text-[#7a0d2b]" colSpan={2}>Total Parts Amount (&#8377;)</td>
               <td className="whitespace-nowrap border border-[#ead0d8] px-3 py-1.5 text-right tabular-nums">{moneyText(partsTotal)}</td>
             </tr>
             <tr>
-              <td className="border border-[#ead0d8] px-3 py-1.5 text-right font-bold text-[#7a0d2b]" colSpan={2}>Total Labour Amount (₹)</td>
+              <td className="border border-[#ead0d8] px-3 py-1.5 text-right font-bold text-[#7a0d2b]" colSpan={2}>Total Labour Amount (&#8377;)</td>
               <td className="whitespace-nowrap border border-[#ead0d8] px-3 py-1.5 text-right tabular-nums">{moneyText(labourTotal)}</td>
             </tr>
             <tr>
-              <td className="border border-[#ead0d8] px-3 py-1.5 text-right font-bold text-[#7a0d2b]" colSpan={2}>Sub Total (₹)</td>
+              <td className="border border-[#ead0d8] px-3 py-1.5 text-right font-bold text-[#7a0d2b]" colSpan={2}>Sub Total (&#8377;)</td>
               <td className="whitespace-nowrap border border-[#ead0d8] px-3 py-1.5 text-right tabular-nums">{moneyText(partsTotal + labourTotal)}</td>
             </tr>
             {hasDiscount ? (
               <tr>
-                <td className="border border-[#ead0d8] px-3 py-1.5 text-right font-bold text-[#7a0d2b]" colSpan={2}>Discount (₹)</td>
+                <td className="border border-[#ead0d8] px-3 py-1.5 text-right font-bold text-[#7a0d2b]" colSpan={2}>Discount (&#8377;)</td>
                 <td className="whitespace-nowrap border border-[#ead0d8] px-3 py-1.5 text-right tabular-nums">- {moneyText(estimate.discount)}</td>
               </tr>
             ) : null}
             <tr className={`${maroon} text-base font-black text-white`}>
-              <td className="border border-[#ead0d8] px-3 py-2 text-right uppercase" colSpan={2}>Grand Total (₹)</td>
+              <td className="border border-[#ead0d8] px-3 py-2 text-right uppercase" colSpan={2}>Grand Total (&#8377;)</td>
               <td className="whitespace-nowrap border border-[#ead0d8] px-3 py-2 text-right tabular-nums">{moneyText(estimate.totalAmount)}</td>
             </tr>
             <tr>
-              <td className="border border-[#ead0d8] px-3 py-1.5 text-right font-bold text-[#7a0d2b]" colSpan={2}>Paid (₹)</td>
+              <td className="border border-[#ead0d8] px-3 py-1.5 text-right font-bold text-[#7a0d2b]" colSpan={2}>Paid (&#8377;)</td>
               <td className="whitespace-nowrap border border-[#ead0d8] px-3 py-1.5 text-right tabular-nums">{moneyText(estimate.advanceReceived)}</td>
             </tr>
             <tr className={hasReturnAmount ? "" : "bg-[#fff5f5] text-[#991b1b]"}>
@@ -168,7 +172,7 @@ export async function EstimatePreview({ id }: { id: string }) {
                 className={`border border-[#ead0d8] px-3 py-1.5 text-right font-bold ${hasReturnAmount ? "text-[#7a0d2b]" : "text-[#991b1b]"}`}
                 colSpan={2}
               >
-                {settlementLabel} (₹)
+                {settlementLabel} (&#8377;)
               </td>
               <td className={`whitespace-nowrap border border-[#ead0d8] px-3 py-1.5 text-right tabular-nums ${hasReturnAmount ? "" : "font-black text-[#991b1b]"}`}>
                 {moneyText(settlementValue)}

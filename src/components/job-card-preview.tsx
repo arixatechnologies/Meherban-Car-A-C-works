@@ -344,7 +344,7 @@ export async function JobCardPreview({ id }: { id: string }) {
         icon={<MessageCircle className="h-5 w-5" />}
         className="mt-3"
       >
-        <p className="text-[14px] leading-6">
+        <p className="whitespace-pre-line text-[14px] leading-6">
           {[...jobCard.complaints, jobCard.customComplaint].filter(Boolean).join(", ") || "-"}
         </p>
       </Box>
@@ -436,9 +436,13 @@ export async function JobCardPreview({ id }: { id: string }) {
                         <tr key={`${group.heading}-${item.description}-${index}`}>
                           <td className="border border-[#ead0d8] px-2 py-1.5 text-center">{commercialRowNumber}</td>
                           <td className="border border-[#ead0d8] px-2 py-1.5 text-center">{item.partService}</td>
-                          <td className="border border-[#ead0d8] px-2 py-1.5">{item.description}</td>
-                          <td className="border border-[#ead0d8] px-2 py-1.5 text-center">{isLabour ? "-" : item.quantity}</td>
-                          <td className="whitespace-nowrap border border-[#ead0d8] px-2 py-1.5 text-right tabular-nums">{isLabour ? "-" : formatMoney(item.unitPrice)}</td>
+                          <td className="border border-[#ead0d8] px-2 py-1.5" colSpan={isLabour ? 3 : 1}>{item.description}</td>
+                          {!isLabour ? (
+                            <>
+                              <td className="border border-[#ead0d8] px-2 py-1.5 text-center">{item.quantity}</td>
+                              <td className="whitespace-nowrap border border-[#ead0d8] px-2 py-1.5 text-right tabular-nums">{formatMoney(item.unitPrice)}</td>
+                            </>
+                          ) : null}
                           <td className="whitespace-nowrap border border-[#ead0d8] px-2 py-1.5 text-right tabular-nums">{formatMoney(item.amount)}</td>
                         </tr>
                       );

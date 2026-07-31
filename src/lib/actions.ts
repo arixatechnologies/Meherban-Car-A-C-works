@@ -415,24 +415,32 @@ async function getSettingPrefixes() {
   };
 }
 
+function formatDocumentSequence(value: string | number | undefined) {
+  const sequence = Number(value || 1);
+  const normalized = Number.isFinite(sequence) && sequence > 0 ? sequence : 1;
+  return String(normalized).padStart(2, "0");
+}
+
 async function nextJobCardNumber() {
   const { jobCardPrefix } = await getSettingPrefixes();
   const year = new Date().getFullYear();
   const prefix = `${jobCardPrefix}-${year}-`;
-  const latestJobCard = await prisma.jobCard.findFirst({
+  const jobCards = await prisma.jobCard.findMany({
     where: { jobCardNumber: { startsWith: prefix } },
-    orderBy: { jobCardNumber: "desc" },
     select: { jobCardNumber: true },
   });
-  const latestSequence = latestJobCard?.jobCardNumber.match(/(\d+)$/)?.[1];
-  const nextSequence = latestSequence ? Number(latestSequence) + 1 : 1;
+  const latestSequence = jobCards.reduce((highest, jobCard) => {
+    const sequence = Number(jobCard.jobCardNumber.match(/(\d+)$/)?.[1] || 0);
+    return Number.isFinite(sequence) && sequence > highest ? sequence : highest;
+  }, 0);
+  const nextSequence = latestSequence + 1;
 
-  return `${prefix}${String(nextSequence).padStart(4, "0")}`;
+  return `${prefix}${formatDocumentSequence(nextSequence)}`;
 }
 
 function documentNumberFromJobCard(jobCardNumber: string, prefix: string) {
   const parts = jobCardNumber.split("-");
-  const sequence = parts.at(-1) || "0001";
+  const sequence = formatDocumentSequence(parts.at(-1));
   const year = parts.at(-2) || String(new Date().getFullYear());
   return `${prefix}-${year}-${sequence}`;
 }
@@ -683,7 +691,10 @@ async function syncJobCardBillingToLinkedDocuments(
   const [estimates, invoices] = await Promise.all([
     prisma.estimate.findMany({
       where: { jobCardId },
-      select: { id: true, totalAmount: true },
+      select: {
+        id: true,
+        items: { select: { amount: true } },
+      },
     }),
     prisma.invoice.findMany({
       where: { jobCardId },
@@ -696,15 +707,20 @@ async function syncJobCardBillingToLinkedDocuments(
   ]);
 
   await Promise.all([
-    ...estimates.map((estimate) =>
-      prisma.estimate.update({
+    ...estimates.map((estimate) => {
+      const totalAmount = nonNegative(sumPayments(estimate.items).sub(discount));
+      const balanceAmount = nonNegative(totalAmount.sub(advanceAmount));
+
+      return prisma.estimate.update({
         where: { id: estimate.id },
         data: {
+          discount,
+          totalAmount,
           advanceReceived: advanceAmount,
-          balanceAmount: nonNegative(estimate.totalAmount.sub(advanceAmount)),
+          balanceAmount,
         },
-      }),
-    ),
+      });
+    }),
     ...invoices.map((invoice) => {
       const totalAmount = nonNegative(sumPayments(invoice.items).sub(discount));
       const paidAmount = advanceAmount.add(sumPayments(invoice.payments));
@@ -729,9 +745,11 @@ async function syncJobCardBillingToLinkedDocuments(
   for (const invoice of invoices) {
     revalidatePath(`/invoices/${invoice.id}`);
   }
+  revalidatePath("/estimates");
+  revalidatePath("/invoices");
 }
 
-async function syncJobCardDiscountFromInvoice(jobCardId: string, discount: Prisma.Decimal) {
+async function syncJobCardDiscountFromDocument(jobCardId: string, discount: Prisma.Decimal) {
   const jobCard = await prisma.jobCard.findUnique({
     where: { id: jobCardId },
     select: {
@@ -758,6 +776,8 @@ async function syncJobCardDiscountFromInvoice(jobCardId: string, discount: Prism
       balanceDue: nonNegative(estimatedTotalAmount.sub(jobCard.advanceAmount)),
     },
   });
+
+  await syncJobCardBillingToLinkedDocuments(jobCardId, jobCard.advanceAmount, discount);
 }
 
 export async function loginAction(
@@ -1361,6 +1381,7 @@ export async function saveEstimate(id: string | null, formData: FormData) {
       },
     });
     await updateJobCardExpectedDeliveryDate(jobCardId, expectedDeliveryAt);
+    await syncJobCardDiscountFromDocument(jobCardId, discount);
 
     revalidatePath("/");
     revalidatePath(`/estimates/${id}`);
@@ -1396,6 +1417,7 @@ export async function saveEstimate(id: string | null, formData: FormData) {
         });
       }
       await updateJobCardExpectedDeliveryDate(jobCardId, expectedDeliveryAt);
+      await syncJobCardDiscountFromDocument(jobCardId, discount);
 
       const setting = await prisma.workshopSetting.findUnique({ where: { singletonKey: "default" } });
       if (
@@ -1429,6 +1451,7 @@ export async function saveEstimate(id: string | null, formData: FormData) {
     });
   }
   await updateJobCardExpectedDeliveryDate(jobCardId, expectedDeliveryAt);
+  await syncJobCardDiscountFromDocument(jobCardId, discount);
 
   const setting = await prisma.workshopSetting.findUnique({ where: { singletonKey: "default" } });
   if (setting?.autoSendEstimateMessage && status === EstimateStatus.SHARED) {
@@ -1597,7 +1620,7 @@ export async function saveInvoice(id: string | null, formData: FormData) {
       },
     });
     await updateJobCardExpectedDeliveryDate(jobCardId, expectedDeliveryAt);
-    await syncJobCardDiscountFromInvoice(jobCardId, discount);
+    await syncJobCardDiscountFromDocument(jobCardId, discount);
     revalidatePath("/");
     revalidatePath(`/invoices/${id}`);
     revalidatePath(`/job-cards/${jobCardId}`);
@@ -1634,7 +1657,7 @@ export async function saveInvoice(id: string | null, formData: FormData) {
           ...(expectedDeliveryAt !== undefined ? { expectedDeliveryAt } : {}),
         },
       });
-      await syncJobCardDiscountFromInvoice(jobCardId, discount);
+      await syncJobCardDiscountFromDocument(jobCardId, discount);
 
       if (estimateId) {
         await prisma.estimate.update({
@@ -1668,7 +1691,7 @@ export async function saveInvoice(id: string | null, formData: FormData) {
       ...(expectedDeliveryAt !== undefined ? { expectedDeliveryAt } : {}),
     },
   });
-  await syncJobCardDiscountFromInvoice(jobCardId, discount);
+  await syncJobCardDiscountFromDocument(jobCardId, discount);
 
   if (estimateId) {
     await prisma.estimate.update({

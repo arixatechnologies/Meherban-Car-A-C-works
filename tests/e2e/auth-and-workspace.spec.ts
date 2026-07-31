@@ -44,27 +44,27 @@ test("admin can login and see billing workspace", async ({ page }) => {
   await expect(page.locator('a[href="/?type=invoice"]')).toBeVisible();
 });
 
-test("new job card validates inline and restores draft", async ({ page }) => {
+test("new job card validates inline and does not restore draft", async ({ page }) => {
   await loginAsAdmin(page);
   await page.goto("/job-cards/new");
-  await page.evaluate(() => window.localStorage.removeItem("meharban-job-card-new-draft-v1"));
-  await page.reload();
   await page.waitForFunction(() => document.querySelector("#job-card-form")?.getAttribute("data-job-card-guard-ready") === "true");
 
   await page.locator("#job-card-form").evaluate((form) => (form as HTMLFormElement).requestSubmit());
 
   await expect(page).toHaveURL(/\/job-cards\/new/);
   await expect(page).not.toHaveURL(/\/action-error/);
-  await expect(page.getByText("Enter customer name.")).toBeVisible();
-  await expect(page.getByText("Enter mobile number.")).toBeVisible();
-  await expect(page.locator('input[name="customerName"]')).toHaveClass(/job-card-invalid-field/);
+  const validationSummary = page.getByText("Please fill the mandatory fields below.").locator("..");
+  await expect(validationSummary.getByText("Enter customer contact number.")).toBeVisible();
+  await expect(validationSummary.getByText("Enter vehicle registration number.")).toBeVisible();
+  await expect(validationSummary.getByText("Select fuel type.")).toBeVisible();
+  await expect(validationSummary.getByText("Enter car make / model.")).toBeVisible();
+  await expect(page.locator('input[name="customerMobile"]')).toHaveClass(/job-card-invalid-field/);
 
   await page.locator('input[name="customerName"]').fill("Draft Customer");
   await page.locator('input[name="customerMobile"]').fill("98765432109");
   await expect(page.locator('input[name="customerMobile"]')).toHaveValue("9876543210");
   await page.reload();
 
-  await expect(page.locator('input[name="customerName"]')).toHaveValue("Draft Customer");
-  await expect(page.locator('input[name="customerMobile"]')).toHaveValue("9876543210");
-  await expect(page.getByText("Draft restored.")).toBeVisible();
+  await expect(page.locator('input[name="customerName"]')).toHaveValue("");
+  await expect(page.locator('input[name="customerMobile"]')).toHaveValue("");
 });

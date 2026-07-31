@@ -7,10 +7,20 @@ import { deletePayment } from "@/lib/actions";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { formatDate, formatMoney } from "@/lib/format";
-import { label } from "@/lib/utils";
+import { label, vehicleMakeModel } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
+
+type PaymentInstallment = {
+  key: string;
+  label: string;
+  date: Date;
+  amount: ReactNode;
+  amountValue: number;
+  mode: string;
+  collectedBy: string;
+};
 
 function paymentCellLink(href: string, children: ReactNode) {
   return (
@@ -29,70 +39,154 @@ export default async function PaymentsPage({
   searchParams: Promise<{ q?: string }>;
 }) {
   const q = (await searchParams).q?.trim() ?? "";
-  const [user, payments] = await Promise.all([
+  const [user, invoices] = await Promise.all([
     requireUser(),
-    prisma.payment.findMany({
+    prisma.invoice.findMany({
       where: q
         ? {
             OR: [
-              { invoice: { invoiceNumber: { contains: q, mode: "insensitive" } } },
-              { customer: { name: { contains: q, mode: "insensitive" } } },
-              { customer: { mobile: { contains: q } } },
-              { referenceNumber: { contains: q, mode: "insensitive" } },
+              { invoiceNumber: { contains: q, mode: "insensitive" } },
+              { vehicle: { brand: { contains: q, mode: "insensitive" } } },
+              { vehicle: { model: { contains: q, mode: "insensitive" } } },
+              { vehicle: { vehicleNumber: { contains: q, mode: "insensitive" } } },
+              { payments: { some: { referenceNumber: { contains: q, mode: "insensitive" } } } },
             ],
           }
-        : undefined,
-      include: { invoice: { include: { jobCard: true } }, customer: true, collectedBy: true },
-      orderBy: { paymentDate: "desc" },
+        : {
+            OR: [
+              { payments: { some: {} } },
+              { jobCard: { advanceAmount: { gt: 0 } } },
+            ],
+          },
+      include: {
+        vehicle: true,
+        jobCard: true,
+        payments: {
+          include: { collectedBy: true },
+          orderBy: [{ paymentDate: "asc" }, { createdAt: "asc" }],
+        },
+      },
+      orderBy: { invoiceDate: "desc" },
     }),
   ]);
   const canDelete = user.role === "ADMIN";
+  const paymentRows = invoices
+    .map((invoice) => {
+      const installments: PaymentInstallment[] = [];
+      const invoiceTotal = Number(invoice.totalAmount);
+      const advanceAmount = Number(invoice.jobCard.advanceAmount);
+
+      if (advanceAmount > 0) {
+        installments.push({
+          key: `advance-${invoice.id}`,
+          label: "Advance",
+          date: invoice.jobCard.dateTime,
+          amount: formatMoney(invoice.jobCard.advanceAmount),
+          amountValue: advanceAmount,
+          mode: invoice.jobCard.paymentMode ? label(invoice.jobCard.paymentMode) : "-",
+          collectedBy: "From Job Card",
+        });
+      }
+
+      invoice.payments.forEach((payment, index) => {
+        installments.push({
+          key: payment.id,
+          label: `Payment ${index + 1}`,
+          date: payment.paymentDate,
+          amount: formatMoney(payment.amount),
+          amountValue: Number(payment.amount),
+          mode: label(payment.mode),
+          collectedBy: payment.collectedBy?.name ?? "-",
+        });
+      });
+
+      const paidTotal = installments.reduce((total, installment) => total + installment.amountValue, 0);
+      const latestDate = installments[installments.length - 1]?.date ?? invoice.invoiceDate;
+
+      return {
+        key: invoice.id,
+        date: latestDate,
+        href: `/invoices/${invoice.id}`,
+        invoiceNumber: invoice.invoiceNumber,
+        vehicleName: vehicleMakeModel(invoice.vehicle.brand, invoice.vehicle.model),
+        invoiceTotal: formatMoney(invoice.totalAmount),
+        paymentDetails: installments.length ? (
+          <div className="min-w-[320px] space-y-2 whitespace-normal">
+            {installments.map((installment) => (
+              <div key={installment.key} className="rounded-md border border-[#efd9d3] bg-[#fff8f2] px-3 py-2">
+                <div className="flex items-center justify-between gap-4">
+                  <span className="font-black text-[#5a173b]">{installment.label}</span>
+                  <span className="font-black text-[#2d1030]">{installment.amount}</span>
+                </div>
+                <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs font-bold text-[#8d6373]">
+                  <span>{formatDate(installment.date)}</span>
+                  <span>{installment.mode}</span>
+                  <span>{installment.collectedBy}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          "-"
+        ),
+        paidTotal: formatMoney(paidTotal),
+        balance: formatMoney(Math.max(invoiceTotal - paidTotal, 0)),
+        action: invoice.payments.length ? (
+          <div className="min-w-[150px] space-y-2 whitespace-normal">
+            {invoice.payments.map((payment, index) => (
+              <form key={payment.id} action={deletePayment.bind(null, payment.id)}>
+                <ConfirmSubmitButton
+                  confirmMessage={`Delete Payment ${index + 1}? Invoice paid amount and balance will be recalculated.`}
+                  disabled={!canDelete}
+                  disabledReason="Only admin can delete payments."
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Delete P{index + 1}
+                </ConfirmSubmitButton>
+              </form>
+            ))}
+          </div>
+        ) : (
+          <span className="text-xs font-black text-[#8d6373]">Advance from Job Card</span>
+        ),
+      };
+    })
+    .sort((left, right) => right.date.getTime() - left.date.getTime());
 
   return (
     <div className="grid gap-6">
       <PageHeader title="Payments" action={<Button href="/payments/new">Record payment</Button>} />
       <Card>
-        <CardHeader title="Payment History" action={<SearchBar defaultValue={q} placeholder="Search invoice, customer, reference" />} />
+        <CardHeader
+          title="Payment History"
+          action={<SearchBar defaultValue={q} placeholder="Search invoice, car model, vehicle, reference" />}
+        />
         <CardBody>
           <DataTable
             headers={[
-              "Date",
+              "Last Payment",
               "Invoice",
-              "Customer",
-              "Advance Paid",
-              "Advance Mode",
-              "Remaining Paid",
-              "Remaining Mode",
-              "Collected By",
+              "Car Make / Model",
+              "Invoice Total",
+              "Payment Details",
+              "Paid Total",
+              "Balance Due",
               "Action",
             ]}
             empty="No payments found."
-            rows={payments.map((payment) => [
-              paymentCellLink(`/payments/${payment.id}`, formatDate(payment.paymentDate)),
+            rows={paymentRows.map((payment) => [
+              paymentCellLink(payment.href, formatDate(payment.date)),
               paymentCellLink(
-                `/payments/${payment.id}`,
-                <span className="font-black text-[#5a173b] hover:underline">{payment.invoice.invoiceNumber}</span>,
+                payment.href,
+                <span className="font-black text-[#5a173b] hover:underline">{payment.invoiceNumber}</span>,
               ),
-              paymentCellLink(`/payments/${payment.id}`, payment.customer.name),
-              paymentCellLink(`/payments/${payment.id}`, formatMoney(payment.invoice.jobCard.advanceAmount)),
-              paymentCellLink(
-                `/payments/${payment.id}`,
-                payment.invoice.jobCard.paymentMode ? label(payment.invoice.jobCard.paymentMode) : "-",
-              ),
-              paymentCellLink(`/payments/${payment.id}`, formatMoney(payment.amount)),
-              paymentCellLink(`/payments/${payment.id}`, label(payment.mode)),
-              paymentCellLink(`/payments/${payment.id}`, payment.collectedBy?.name ?? "-"),
+              paymentCellLink(payment.href, payment.vehicleName),
+              paymentCellLink(payment.href, payment.invoiceTotal),
+              paymentCellLink(payment.href, payment.paymentDetails),
+              paymentCellLink(payment.href, payment.paidTotal),
+              paymentCellLink(payment.href, payment.balance),
               <div key="actions" className="flex flex-wrap items-center gap-2">
-                <form action={deletePayment.bind(null, payment.id)}>
-                  <ConfirmSubmitButton
-                    confirmMessage="Delete this payment? Invoice paid amount and balance will be recalculated."
-                    disabled={!canDelete}
-                    disabledReason="Only admin can delete payments."
-                  >
-                    <Trash2 className="h-4 w-4" />
-                    Delete
-                  </ConfirmSubmitButton>
-                </form>
+                {payment.action}
               </div>,
             ])}
           />

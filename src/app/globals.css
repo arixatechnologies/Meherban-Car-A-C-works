@@ -36,7 +36,15 @@ body {
 }
 
 .document-lock-font {
-  font-family: Arial, Helvetica, sans-serif;
+  font-family:
+    var(--font-document),
+    "Noto Sans",
+    "Nirmala UI",
+    "Segoe UI Symbol",
+    "DejaVu Sans",
+    Arial,
+    Helvetica,
+    sans-serif;
 }
 
 .password-mask {

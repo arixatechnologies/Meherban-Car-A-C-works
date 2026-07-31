@@ -40,10 +40,12 @@ export async function InvoicePreview({ id }: { id: string }) {
   const subtotal = invoice.items.reduce((sum, item) => sum + Number(item.amount), 0);
   const discountAmount = Number(invoice.discount);
   const hasDiscount = discountAmount > 0;
+  const recordedPaidAmount = invoice.payments.reduce((sum, payment) => sum + Number(payment.amount), 0);
+  const hasRecordedPayment = recordedPaidAmount > 0;
   const returnAmount = Math.max(Number(invoice.paidAmount) - Number(invoice.totalAmount), 0);
   const hasReturnAmount = returnAmount > 0;
   const isPaid = !hasReturnAmount && Number(invoice.totalAmount) > 0 && Number(invoice.balanceAmount) <= 0;
-  const settlementLabel = hasReturnAmount ? "Return Amount" : isPaid ? "Paid" : "Balance Due";
+  const settlementLabel = hasReturnAmount ? "Return Amount" : isPaid ? "Total Paid" : "Balance Due";
   const settlementValue = hasReturnAmount ? returnAmount : isPaid ? invoice.paidAmount : invoice.balanceAmount;
   const settlementRowClass = hasReturnAmount
     ? ""
@@ -108,9 +110,13 @@ export async function InvoicePreview({ id }: { id: string }) {
                   <tr key={item.id}>
                     <td className="border border-[#ead0d8] px-2 py-1.5 text-center">{index + 1}</td>
                     <td className="border border-[#ead0d8] px-2 py-1.5">{item.partService || item.description}</td>
-                    <td className="border border-[#ead0d8] px-2 py-1.5">{item.partService ? item.description : label(item.category)}</td>
-                    <td className="border border-[#ead0d8] px-2 py-1.5 text-center">{isLabour ? "-" : item.quantity.toString()}</td>
-                    <td className="whitespace-nowrap border border-[#ead0d8] px-2 py-1.5 text-right tabular-nums">{isLabour ? "-" : moneyText(item.unitPrice)}</td>
+                    <td className="border border-[#ead0d8] px-2 py-1.5" colSpan={isLabour ? 3 : 1}>{item.partService ? item.description : label(item.category)}</td>
+                    {!isLabour ? (
+                      <>
+                        <td className="border border-[#ead0d8] px-2 py-1.5 text-center">{item.quantity.toString()}</td>
+                        <td className="whitespace-nowrap border border-[#ead0d8] px-2 py-1.5 text-right tabular-nums">{moneyText(item.unitPrice)}</td>
+                      </>
+                    ) : null}
                     <td className="whitespace-nowrap border border-[#ead0d8] px-2 py-1.5 text-right tabular-nums">{moneyText(item.amount)}</td>
                   </tr>
                 );
@@ -125,7 +131,11 @@ export async function InvoicePreview({ id }: { id: string }) {
           </tbody>
           <tfoot>
             <tr>
-              <td className="border border-[#ead0d8] px-2 py-2" colSpan={3} rowSpan={hasDiscount ? 5 : 4} />
+              <td
+                className="border border-[#ead0d8] px-2 py-2"
+                colSpan={3}
+                rowSpan={4 + (hasDiscount ? 1 : 0) + (hasRecordedPayment ? 1 : 0)}
+              />
               <td className="border border-[#ead0d8] px-3 py-1.5 text-right font-bold text-[#7a0d2b]" colSpan={2}>Sub Total (&#8377;)</td>
               <td className="whitespace-nowrap border border-[#ead0d8] px-3 py-1.5 text-right tabular-nums">{moneyText(subtotal)}</td>
             </tr>
@@ -137,6 +147,12 @@ export async function InvoicePreview({ id }: { id: string }) {
               <td className="border border-[#ead0d8] px-3 py-1.5 text-right font-bold text-[#7a0d2b]" colSpan={2}>Advance Paid (&#8377;)</td>
               <td className="whitespace-nowrap border border-[#ead0d8] px-3 py-1.5 text-right tabular-nums">{moneyText(invoice.jobCard.advanceAmount)}</td>
             </tr>
+            {hasRecordedPayment ? (
+              <tr>
+                <td className="border border-[#ead0d8] px-3 py-1.5 text-right font-bold text-[#166534]" colSpan={2}>Remaining Paid (&#8377;)</td>
+                <td className="whitespace-nowrap border border-[#ead0d8] px-3 py-1.5 text-right font-bold tabular-nums text-[#166534]">{moneyText(recordedPaidAmount)}</td>
+              </tr>
+            ) : null}
             {hasDiscount ? (
               <tr>
                 <td className="border border-[#ead0d8] px-3 py-1.5 text-right font-bold text-[#7a0d2b]" colSpan={2}>Discount (&#8377;)</td>

@@ -188,11 +188,13 @@ export function JobCardValidationGuard() {
     jobCardForm.addEventListener("submit", handleSubmit);
     jobCardForm.addEventListener("input", handleInput);
     jobCardForm.addEventListener("change", handleInput);
+    jobCardForm.setAttribute("data-job-card-guard-ready", "true");
 
     return () => {
       jobCardForm.removeEventListener("submit", handleSubmit);
       jobCardForm.removeEventListener("input", handleInput);
       jobCardForm.removeEventListener("change", handleInput);
+      jobCardForm.removeAttribute("data-job-card-guard-ready");
     };
   }, []);
 

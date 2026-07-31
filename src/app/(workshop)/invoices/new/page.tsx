@@ -31,6 +31,7 @@ export default async function NewInvoicePage({
         estimateNumber: selectedEstimate.estimateNumber,
         jobCardId: selectedEstimate.jobCardId,
         totalAmount: selectedEstimate.totalAmount,
+        discount: selectedEstimate.discount,
         advanceReceived: selectedEstimate.advanceReceived,
         items: selectedEstimate.items,
       }

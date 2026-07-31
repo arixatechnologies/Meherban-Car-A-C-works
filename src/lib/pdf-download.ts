@@ -121,6 +121,19 @@ export async function renderPdfFromUrl(url: string, cookieHeader?: string | null
           margin: 0 auto !important;
           box-shadow: none !important;
         }
+
+        .document-lock-font,
+        .document-lock-font * {
+          font-family:
+            var(--font-document),
+            "Noto Sans",
+            "Nirmala UI",
+            "Segoe UI Symbol",
+            "DejaVu Sans",
+            Arial,
+            Helvetica,
+            sans-serif !important;
+        }
       `,
     });
     await page.evaluateHandle("document.fonts.ready");

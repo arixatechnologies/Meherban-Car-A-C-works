@@ -16,6 +16,7 @@ import { formatDateInput, formatMoney, toDateInput } from "@/lib/format";
 import { statusMessageTemplateFields, statusTemplatesFromJson } from "@/lib/status-message-templates";
 import { label, vehicleMakeModel } from "@/lib/utils";
 import { Field, inputClass, textareaClass } from "@/components/ui";
+import { AutoNumberTextarea } from "@/components/auto-number-textarea";
 import { SubmitButton } from "@/components/submit-button";
 import { JobCardPartsEditor } from "@/components/job-card-parts-editor";
 import { JobCardValidationGuard } from "@/components/job-card-validation-guard";
@@ -95,6 +96,7 @@ type EstimateOption = {
   estimateNumber: string;
   jobCardId: string;
   totalAmount: Decimalish;
+  discount?: Decimalish;
   advanceReceived?: Decimalish;
   items?: LineItem[];
 };
@@ -149,7 +151,8 @@ function documentNumberPreview(jobCardNumber: string | undefined, prefix: string
   if (!jobCardNumber) return fallback;
   const parts = jobCardNumber.split("-");
   const year = parts.at(-2) || String(new Date().getFullYear());
-  const sequence = parts.at(-1) || "0001";
+  const rawSequence = Number(parts.at(-1) || 1);
+  const sequence = String(Number.isFinite(rawSequence) && rawSequence > 0 ? rawSequence : 1).padStart(2, "0");
   return `${prefix}-${year}-${sequence}`;
 }
 
@@ -649,7 +652,7 @@ export function JobCardForm({
       </div>
 
       <FormSection title="Complaint / Issue Reported By Customer" className="mt-4">
-        <textarea
+        <AutoNumberTextarea
           name="customComplaint"
           defaultValue={[...(jobCard?.complaints ?? []), jobCard?.customComplaint].filter(Boolean).join(", ")}
           placeholder="Example: A/C not cooling properly, bad smell from vents."
@@ -944,7 +947,8 @@ export function EstimateForm({
         <LineItemsEditor
           items={initialItems}
           showSettlement
-          showDiscount={false}
+          discountName="discount"
+          discountValue={valueOf(estimate?.discount) || valueOf(lockedJobCard?.discount)}
           paidName="advanceReceived"
           paidValue={valueOf(estimate?.advanceReceived) || valueOf(lockedJobCard?.advanceAmount)}
           paidEditable={false}
@@ -1029,6 +1033,8 @@ export function InvoiceForm({
   const serviceSummary = invoice?.notes || `${complaintText || "Service completed"}${complaintText ? ". " : " "}Service completed and billed as below.`;
   const invoicePaidAmount =
     invoice ? valueOf(invoice.paidAmount) : valueOf(lockedJobCard?.advanceAmount);
+  const invoiceDiscount =
+    invoice ? valueOf(invoice.discount) : valueOf(selectedEstimate?.discount ?? lockedEstimate?.discount ?? lockedJobCard?.discount);
 
   return (
     <form action={action} className="document-lock-font mx-auto max-w-[1120px] rounded-xl border-2 border-[#d9a5b3] bg-white p-4 shadow-[0_10px_30px_rgba(139,15,47,0.15)]">
@@ -1153,7 +1159,7 @@ export function InvoiceForm({
           showDiscount
           discountPlacement="afterPaid"
           discountName="discount"
-          discountValue={invoice ? valueOf(invoice.discount) : valueOf(lockedJobCard?.discount)}
+          discountValue={invoiceDiscount}
           paidName="paidAmount"
           paidValue={invoicePaidAmount}
           paidEditable={false}
