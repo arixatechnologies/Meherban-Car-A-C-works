@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Trash2 } from "lucide-react";
 import type { ReactNode } from "react";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
+import { PAGE_SIZE, Pagination, parsePageParam } from "@/components/pagination";
 import { Button, Card, CardBody, CardHeader, DataTable, PageHeader, SearchBar } from "@/components/ui";
 import { deletePayment } from "@/lib/actions";
 import { requireUser } from "@/lib/auth";
@@ -36,39 +37,47 @@ function paymentCellLink(href: string, children: ReactNode) {
 export default async function PaymentsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; page?: string }>;
 }) {
-  const q = (await searchParams).q?.trim() ?? "";
-  const [user, invoices] = await Promise.all([
+  const params = await searchParams;
+  const q = params.q?.trim() ?? "";
+  const requestedPage = parsePageParam(params.page);
+  const invoiceWhere = q
+    ? {
+        OR: [
+          { invoiceNumber: { contains: q, mode: "insensitive" as const } },
+          { vehicle: { brand: { contains: q, mode: "insensitive" as const } } },
+          { vehicle: { model: { contains: q, mode: "insensitive" as const } } },
+          { vehicle: { vehicleNumber: { contains: q, mode: "insensitive" as const } } },
+          { payments: { some: { referenceNumber: { contains: q, mode: "insensitive" as const } } } },
+        ],
+      }
+    : {
+        OR: [
+          { payments: { some: {} } },
+          { jobCard: { advanceAmount: { gt: 0 } } },
+        ],
+      };
+  const [user, totalItems] = await Promise.all([
     requireUser(),
-    prisma.invoice.findMany({
-      where: q
-        ? {
-            OR: [
-              { invoiceNumber: { contains: q, mode: "insensitive" } },
-              { vehicle: { brand: { contains: q, mode: "insensitive" } } },
-              { vehicle: { model: { contains: q, mode: "insensitive" } } },
-              { vehicle: { vehicleNumber: { contains: q, mode: "insensitive" } } },
-              { payments: { some: { referenceNumber: { contains: q, mode: "insensitive" } } } },
-            ],
-          }
-        : {
-            OR: [
-              { payments: { some: {} } },
-              { jobCard: { advanceAmount: { gt: 0 } } },
-            ],
-          },
-      include: {
-        vehicle: true,
-        jobCard: true,
-        payments: {
-          include: { collectedBy: true },
-          orderBy: [{ paymentDate: "asc" }, { createdAt: "asc" }],
-        },
-      },
-      orderBy: { invoiceDate: "desc" },
-    }),
+    prisma.invoice.count({ where: invoiceWhere }),
   ]);
+  const totalPages = Math.max(1, Math.ceil(totalItems / PAGE_SIZE));
+  const currentPage = Math.min(requestedPage, totalPages);
+  const invoices = await prisma.invoice.findMany({
+    where: invoiceWhere,
+    include: {
+      vehicle: true,
+      jobCard: true,
+      payments: {
+        include: { collectedBy: true },
+        orderBy: [{ paymentDate: "asc" }, { createdAt: "asc" }],
+      },
+    },
+    orderBy: { updatedAt: "desc" },
+    skip: (currentPage - 1) * PAGE_SIZE,
+    take: PAGE_SIZE,
+  });
   const canDelete = user.role === "ADMIN";
   const paymentRows = invoices
     .map((invoice) => {
@@ -190,6 +199,14 @@ export default async function PaymentsPage({
               </div>,
             ])}
           />
+          <div className="mt-4">
+            <Pagination
+              basePath="/payments"
+              currentPage={currentPage}
+              totalItems={totalItems}
+              query={{ q: q || undefined }}
+            />
+          </div>
         </CardBody>
       </Card>
     </div>

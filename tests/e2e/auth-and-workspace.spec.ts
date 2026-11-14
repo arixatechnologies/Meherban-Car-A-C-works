@@ -42,6 +42,31 @@ test("admin can login and see billing workspace", async ({ page }) => {
   await expect(page.locator('a[href="/?type=job-card"]')).toBeVisible();
   await expect(page.locator('a[href="/?type=estimate"]')).toBeVisible();
   await expect(page.locator('a[href="/?type=invoice"]')).toBeVisible();
+  await expect(page.getByRole("columnheader", { name: "Status" })).toHaveCount(0);
+
+  await page.goto("/settings");
+  await expect(page.getByRole("link", { name: "WhatsApp Logs" })).toHaveCount(0);
+});
+
+test("job cards paginate in groups of 50", async ({ page }) => {
+  await loginAsAdmin(page);
+  await page.goto("/job-cards");
+
+  const pagination = page.getByRole("navigation", { name: "Pagination" });
+  const summary = pagination.getByText(/^Showing /);
+  await expect(summary).toBeVisible();
+
+  const match = (await summary.innerText()).match(/^Showing 1-(\d+) of (\d+)$/);
+  expect(match).not.toBeNull();
+  const firstPageEnd = Number(match?.[1]);
+  const totalItems = Number(match?.[2]);
+  expect(firstPageEnd).toBe(Math.min(50, totalItems));
+
+  if (totalItems > 50) {
+    await pagination.getByRole("link", { name: "Next" }).click();
+    await expect(page).toHaveURL(/\/job-cards\?page=2$/);
+    await expect(page.getByRole("navigation", { name: "Pagination" }).getByText(/^Showing 51-/)).toBeVisible();
+  }
 });
 
 test("new job card validates inline and does not restore draft", async ({ page }) => {

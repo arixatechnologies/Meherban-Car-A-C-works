@@ -2,12 +2,11 @@ import { Plus } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { PreviewIcon, WhatsAppIcon } from "@/components/action-icons";
+import { PAGE_SIZE, Pagination, parsePageParam } from "@/components/pagination";
 import { PdfDownloadButton } from "@/components/pdf-download-button";
-import { StatusMessageControl } from "@/components/status-message-control";
-import { Badge, Button, Card, CardBody, CardHeader, DataTable, PageHeader, inputClass } from "@/components/ui";
+import { Button, Card, CardBody, CardHeader, DataTable, PageHeader, inputClass } from "@/components/ui";
 import { prisma } from "@/lib/db";
 import { formatDate } from "@/lib/format";
-import { statusMessageTemplateFields } from "@/lib/status-message-templates";
 import { cn, vehicleMakeModel } from "@/lib/utils";
 import {
   createWhatsAppLink,
@@ -15,24 +14,23 @@ import {
   invoiceGeneratedBody,
   jobCardCreatedBody,
   requestAppUrl,
-  statusMessageBody,
-  statusMessageSentHeading,
 } from "@/lib/whatsapp";
 
 export type DocumentType = "all" | "job-card" | "estimate" | "invoice";
-type Moneyish = number | string | { toString(): string };
 
-function filterHref(type: DocumentType, q: string) {
+function filterHref(type: DocumentType, q: string, page?: number) {
   const params = new URLSearchParams();
   if (q) params.set("q", q);
   if (type !== "all") params.set("type", type);
+  if (page && page > 1) params.set("page", String(page));
   const query = params.toString();
   return query ? `/?${query}` : "/";
 }
 
-function currentPageHref(path: string, q: string) {
+function currentPageHref(path: string, q: string, page?: number) {
   const params = new URLSearchParams();
   if (q) params.set("q", q);
+  if (page && page > 1) params.set("page", String(page));
   const query = params.toString();
   return query ? `${path}?${query}` : path;
 }
@@ -57,100 +55,20 @@ function documentCellLink(href: string, children: ReactNode) {
   );
 }
 
-function sentStatusMessages(
-  logs: {
-    messageBody: string;
-    status: string;
-    statusMessageKey: string | null;
-  }[],
-) {
-  return statusMessageTemplateFields
-    .filter((template) =>
-      logs.some(
-        (log) =>
-          log.status !== "FAILED" &&
-          (log.statusMessageKey === template.status ||
-            log.messageBody.includes(statusMessageSentHeading(template.status))),
-      ),
-    )
-    .map((template) => template.status);
-}
-
-function statusFallbackLinks({
-  jobCard,
-  templates,
-  baseUrl,
-}: {
-  jobCard: {
-    id: string;
-    customerId: string;
-    jobCardNumber: string;
-    trackingToken: string;
-    complaints: string[];
-    customComplaint: string | null;
-    problemFound: string | null;
-    workSuggested: string | null;
-    estimatedTotalAmount: Moneyish;
-    advanceAmount: Moneyish;
-    balanceDue: Moneyish;
-    customer: { name: string; mobile: string; whatsapp: string | null };
-    vehicle: { vehicleNumber: string };
-    estimates: { id: string; estimateNumber: string; totalAmount: Moneyish; balanceAmount: Moneyish }[];
-    invoices: { id: string; invoiceNumber: string; totalAmount: Moneyish; paidAmount: Moneyish; balanceAmount: Moneyish }[];
-  };
-  templates: unknown;
-  baseUrl: string;
-}) {
-  const latestEstimate = jobCard.estimates[0];
-  const latestInvoice = jobCard.invoices[0];
-  const problemSummary =
-    jobCard.problemFound ||
-    jobCard.customComplaint ||
-    jobCard.complaints.join(", ") ||
-    undefined;
-  const context = {
-    customerId: jobCard.customerId,
-    jobCardId: jobCard.id,
-    estimateId: latestEstimate?.id,
-    invoiceId: latestInvoice?.id,
-    customerName: jobCard.customer.name,
-    mobileNumber: jobCard.customer.whatsapp || jobCard.customer.mobile,
-    vehicleNumber: jobCard.vehicle.vehicleNumber,
-    jobCardNumber: jobCard.jobCardNumber,
-    estimateNumber: latestEstimate?.estimateNumber,
-    invoiceNumber: latestInvoice?.invoiceNumber,
-    totalAmount: latestInvoice?.totalAmount ?? latestEstimate?.totalAmount ?? jobCard.estimatedTotalAmount,
-    paidAmount: latestInvoice?.paidAmount ?? jobCard.advanceAmount,
-    balanceAmount: latestInvoice?.balanceAmount ?? latestEstimate?.balanceAmount ?? jobCard.balanceDue,
-    amount: latestInvoice?.balanceAmount ?? latestEstimate?.balanceAmount ?? jobCard.balanceDue,
-    trackingToken: jobCard.trackingToken,
-    problemSummary,
-    issueName: problemSummary,
-    baseUrl,
-  };
-
-  return Object.fromEntries(
-    statusMessageTemplateFields.map((template) => [
-      template.status,
-      createWhatsAppLink(context.mobileNumber, statusMessageBody(context, template.status, templates)),
-    ]),
-  );
-}
-
 export async function BillingWorkspace({
   searchParams,
   fixedType,
   formAction = "/",
 }: {
-  searchParams: Promise<{ q?: string; type?: DocumentType }>;
+  searchParams: Promise<{ q?: string; type?: DocumentType; page?: string }>;
   fixedType?: DocumentType;
   formAction?: string;
 }) {
   const params = await searchParams;
   const q = params.q?.trim() ?? "";
   const type = fixedType ?? params.type ?? "all";
+  const requestedPage = parsePageParam(params.page);
   const baseUrl = await requestAppUrl();
-  const returnTo = fixedType ? currentPageHref(formAction, q) : filterHref(type, q);
   const includeJobCards = type === "all" || type === "job-card";
   const includeEstimates = type === "all" || type === "estimate";
   const includeInvoices = type === "all" || type === "invoice";
@@ -187,31 +105,29 @@ export async function BillingWorkspace({
       }
     : undefined;
 
-  const [jobCards, estimates, invoices, setting] = await Promise.all([
+  const [jobCardCount, estimateCount, invoiceCount] = await Promise.all([
+    includeJobCards ? prisma.jobCard.count({ where: jobCardWhere }) : Promise.resolve(0),
+    includeEstimates ? prisma.estimate.count({ where: estimateWhere }) : Promise.resolve(0),
+    includeInvoices ? prisma.invoice.count({ where: invoiceWhere }) : Promise.resolve(0),
+  ]);
+  const totalItems = jobCardCount + estimateCount + invoiceCount;
+  const totalPages = Math.max(1, Math.ceil(totalItems / PAGE_SIZE));
+  const currentPage = Math.min(requestedPage, totalPages);
+  const offset = (currentPage - 1) * PAGE_SIZE;
+  const fetchSize = type === "all" ? offset + PAGE_SIZE : PAGE_SIZE;
+  const queryOffset = type === "all" ? undefined : offset;
+
+  const [jobCards, estimates, invoices] = await Promise.all([
     includeJobCards
       ? prisma.jobCard.findMany({
           where: jobCardWhere,
           include: {
             customer: true,
             vehicle: true,
-            estimates: {
-              select: { id: true, estimateNumber: true, totalAmount: true, balanceAmount: true },
-              orderBy: { createdAt: "desc" },
-              take: 1,
-            },
-            invoices: {
-              select: { id: true, invoiceNumber: true, totalAmount: true, paidAmount: true, balanceAmount: true },
-              orderBy: { createdAt: "desc" },
-              take: 1,
-            },
-            whatsappLogs: {
-              select: { messageBody: true, status: true, statusMessageKey: true },
-              orderBy: { createdAt: "desc" },
-              take: 100,
-            },
           },
           orderBy: { dateTime: "desc" },
-          take: 100,
+          skip: queryOffset,
+          take: fetchSize,
         })
       : Promise.resolve([]),
     includeEstimates
@@ -219,7 +135,8 @@ export async function BillingWorkspace({
           where: estimateWhere,
           include: { customer: true, vehicle: true, jobCard: true },
           orderBy: { date: "desc" },
-          take: 100,
+          skip: queryOffset,
+          take: fetchSize,
         })
       : Promise.resolve([]),
     includeInvoices
@@ -227,21 +144,12 @@ export async function BillingWorkspace({
           where: invoiceWhere,
           include: { customer: true, vehicle: true, jobCard: true },
           orderBy: { invoiceDate: "desc" },
-          take: 100,
+          skip: queryOffset,
+          take: fetchSize,
         })
       : Promise.resolve([]),
-    prisma.workshopSetting.findUnique({
-      where: { singletonKey: "default" },
-      select: { enableWhatsAppApiSending: true, statusMessageTemplates: true },
-    }),
   ]);
-  const apiSendingAvailable = Boolean(
-    setting?.enableWhatsAppApiSending &&
-      process.env.WHATSAPP_ACCESS_TOKEN &&
-      process.env.WHATSAPP_PHONE_NUMBER_ID,
-  );
-
-  const documents = [
+  const sortedDocuments = [
     ...jobCards.map((jobCard) => ({
       kind: "job-card" as const,
       sortDate: jobCard.dateTime,
@@ -252,21 +160,6 @@ export async function BillingWorkspace({
       mobileNumber: jobCard.customer.whatsapp || jobCard.customer.mobile,
       vehicleName: vehicleMakeModel(jobCard.vehicle.brand, jobCard.vehicle.model),
       vehicleNumber: jobCard.vehicle.vehicleNumber,
-      status: jobCard.status,
-      statusNode: (
-        <StatusMessageControl
-          jobCardId={jobCard.id}
-          currentStatus={jobCard.status}
-          sentStatuses={sentStatusMessages(jobCard.whatsappLogs)}
-          returnTo={returnTo}
-          apiSendingAvailable={apiSendingAvailable}
-          fallbackLinks={statusFallbackLinks({
-            jobCard,
-            templates: setting?.statusMessageTemplates,
-            baseUrl,
-          })}
-        />
-      ),
       message: jobCardCreatedBody({
         customerId: jobCard.customerId,
         jobCardId: jobCard.id,
@@ -288,8 +181,6 @@ export async function BillingWorkspace({
       mobileNumber: estimate.customer.whatsapp || estimate.customer.mobile,
       vehicleName: vehicleMakeModel(estimate.vehicle.brand, estimate.vehicle.model),
       vehicleNumber: estimate.vehicle.vehicleNumber,
-      status: estimate.status,
-      statusNode: <Badge value={estimate.status} />,
       message: estimateSharedBody({
         customerId: estimate.customerId,
         jobCardId: estimate.jobCardId,
@@ -313,8 +204,6 @@ export async function BillingWorkspace({
       mobileNumber: invoice.customer.whatsapp || invoice.customer.mobile,
       vehicleName: vehicleMakeModel(invoice.vehicle.brand, invoice.vehicle.model),
       vehicleNumber: invoice.vehicle.vehicleNumber,
-      status: invoice.paymentStatus,
-      statusNode: <Badge value={invoice.paymentStatus} />,
       message: invoiceGeneratedBody({
         customerId: invoice.customerId,
         jobCardId: invoice.jobCardId,
@@ -332,8 +221,8 @@ export async function BillingWorkspace({
     })),
   ]
     .filter((document) => type === "all" || document.kind === type)
-    .sort((left, right) => right.sortDate.getTime() - left.sortDate.getTime())
-    .slice(0, 100);
+    .sort((left, right) => right.sortDate.getTime() - left.sortDate.getTime());
+  const documents = type === "all" ? sortedDocuments.slice(offset, offset + PAGE_SIZE) : sortedDocuments;
 
   const filters: { label: string; value: DocumentType }[] = [
     { label: "All", value: "all" },
@@ -392,7 +281,7 @@ export async function BillingWorkspace({
           </div>
 
           <DataTable
-            headers={["Document", "Car Make / Model", "Phone", "Vehicle", "Date", "Status", "Actions"]}
+            headers={["Document", "Car Make / Model", "Phone", "Vehicle", "Date", "Actions"]}
             empty="No billing documents found."
             rows={documents.map((document) => [
               documentCellLink(
@@ -406,7 +295,6 @@ export async function BillingWorkspace({
               ),
               documentCellLink(document.href, document.vehicleNumber),
               documentCellLink(document.href, formatDate(document.sortDate)),
-              <div key="status">{document.statusNode}</div>,
               <div key="actions" className="flex items-center gap-2">
                 <Link href={document.href} className={iconActionClass("view")} title="View">
                   <PreviewIcon />
@@ -423,6 +311,15 @@ export async function BillingWorkspace({
                 </a>
               </div>,
             ])}
+          />
+          <Pagination
+            basePath={formAction}
+            currentPage={currentPage}
+            totalItems={totalItems}
+            query={{
+              q: q || undefined,
+              type: !fixedType && type !== "all" ? type : undefined,
+            }}
           />
         </CardBody>
       </Card>

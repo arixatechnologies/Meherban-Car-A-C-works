@@ -6,7 +6,7 @@ export const runtime = "nodejs";
 export default function HomePage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; type?: DocumentType }>;
+  searchParams: Promise<{ q?: string; type?: DocumentType; page?: string }>;
 }) {
   return <BillingWorkspace searchParams={searchParams} />;
 }

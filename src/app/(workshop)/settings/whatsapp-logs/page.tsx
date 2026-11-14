@@ -1,5 +1,6 @@
 import { WhatsAppIcon } from "@/components/action-icons";
 import { CopyButton } from "@/components/copy-button";
+import { PAGE_SIZE, Pagination, parsePageParam } from "@/components/pagination";
 import { Badge, Button, Card, CardBody, CardHeader, DataTable, PageHeader, SearchBar } from "@/components/ui";
 import { retryWhatsAppLog } from "@/lib/actions";
 import { prisma } from "@/lib/db";
@@ -12,23 +13,30 @@ export const runtime = "nodejs";
 export default async function SettingsWhatsAppLogsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; page?: string }>;
 }) {
-  const q = (await searchParams).q?.trim() ?? "";
+  const params = await searchParams;
+  const q = params.q?.trim() ?? "";
+  const requestedPage = parsePageParam(params.page);
+  const logWhere = q
+    ? {
+        OR: [
+          { mobileNumber: { contains: q } },
+          { customer: { name: { contains: q, mode: "insensitive" as const } } },
+          { apiMessageId: { contains: q, mode: "insensitive" as const } },
+          { messageBody: { contains: q, mode: "insensitive" as const } },
+        ],
+      }
+    : undefined;
+  const totalItems = await prisma.whatsAppLog.count({ where: logWhere });
+  const totalPages = Math.max(1, Math.ceil(totalItems / PAGE_SIZE));
+  const currentPage = Math.min(requestedPage, totalPages);
   const logs = await prisma.whatsAppLog.findMany({
-    where: q
-      ? {
-          OR: [
-            { mobileNumber: { contains: q } },
-            { customer: { name: { contains: q, mode: "insensitive" } } },
-            { apiMessageId: { contains: q, mode: "insensitive" } },
-            { messageBody: { contains: q, mode: "insensitive" } },
-          ],
-        }
-      : undefined,
+    where: logWhere,
     include: { customer: true },
     orderBy: { createdAt: "desc" },
-    take: 100,
+    skip: (currentPage - 1) * PAGE_SIZE,
+    take: PAGE_SIZE,
   });
 
   return (
@@ -71,6 +79,14 @@ export default async function SettingsWhatsAppLogsPage({
               </div>,
             ])}
           />
+          <div className="mt-4">
+            <Pagination
+              basePath="/settings/whatsapp-logs"
+              currentPage={currentPage}
+              totalItems={totalItems}
+              query={{ q: q || undefined }}
+            />
+          </div>
         </CardBody>
       </Card>
     </div>
