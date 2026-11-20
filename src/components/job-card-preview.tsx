@@ -2,7 +2,6 @@ import {
   BadgeIndianRupee,
   Car,
   Check,
-  ClipboardList,
   AlertTriangle,
   MapPin,
   MessageCircle,
@@ -18,7 +17,7 @@ import {
 import Image from "next/image";
 import { notFound } from "next/navigation";
 import { Fragment, type ReactNode } from "react";
-import { ItemCategory, type InspectionStatus, type JobCardStatus } from "@/generated/prisma/client";
+import { ItemCategory, type InspectionStatus } from "@/generated/prisma/client";
 import { prisma } from "@/lib/db";
 import { decimalToNumber, formatDate, formatMoney } from "@/lib/format";
 import { label, vehicleMakeModel } from "@/lib/utils";
@@ -133,29 +132,6 @@ function LegendMark({ status, text }: { status: InspectionStatus; text: string }
   );
 }
 
-function stageForStatus(status: JobCardStatus) {
-  const stageMap: Record<JobCardStatus, number> = {
-    VEHICLE_RECEIVED: 0,
-    INSPECTION_STARTED: 1,
-    ISSUE_DIAGNOSED: 1,
-    ESTIMATE_SHARED: 1,
-    WAITING_FOR_CUSTOMER_APPROVAL: 1,
-    CUSTOMER_APPROVED: 2,
-    WORK_IN_PROGRESS: 2,
-    PARTS_REQUIRED: 2,
-    AC_GAS_FILLING: 2,
-    COOLING_TEST: 2,
-    QUALITY_CHECK: 2,
-    READY_FOR_DELIVERY: 3,
-    INVOICE_GENERATED: 3,
-    PAYMENT_PENDING: 3,
-    DELIVERED: 4,
-    CANCELLED: 0,
-  };
-
-  return stageMap[status] ?? 0;
-}
-
 export async function JobCardPreview({ id }: { id: string }) {
   const [jobCard, setting] = await Promise.all([
     prisma.jobCard.findUnique({
@@ -256,19 +232,11 @@ export async function JobCardPreview({ id }: { id: string }) {
   const tagline = setting?.tagline || "Complete Car A/C Service & Repair Specialist";
   const phoneNumber = setting?.phoneNumber || setting?.whatsappNumber || defaultPhoneNumber;
   const address = setting?.address || defaultAddress;
-  const currentStage = stageForStatus(jobCard.status);
   const inspectionSplitIndex = Math.ceil(jobCard.inspectionItems.length / 2);
   const inspectionRows = Array.from({ length: inspectionSplitIndex }).map((_, index) => [
     jobCard.inspectionItems[index],
     jobCard.inspectionItems[index + inspectionSplitIndex],
   ]);
-  const statusSteps = [
-    "Vehicle Received",
-    "Inspection Started",
-    "Work In Progress",
-    "Ready for Delivery",
-    "Delivered",
-  ];
 
   return (
     <article className="document-lock-font print-page mx-auto max-w-[1120px] rounded-xl border border-[#d8a1b1] bg-white p-5 text-slate-950 shadow-sm print:rounded-none print:p-4">
@@ -489,33 +457,12 @@ export async function JobCardPreview({ id }: { id: string }) {
         </dl>
       </section>
 
-      <div className="mt-3 grid gap-3 md:grid-cols-2">
+      <div className="mt-3">
         <Box title="Technician / Workshop Use Only" icon={<UserCog className="h-5 w-5" />}>
           <dl className="grid gap-3 text-[13px] sm:grid-cols-2">
             <InfoRow labelText="Technician Name" value={jobCard.technicianName || jobCard.assignedTechnician?.name || "-"} />
             <InfoRow labelText="Final QC By" value={jobCard.finalQcBy || "________________"} />
           </dl>
-        </Box>
-
-        <Box title="Work Status" icon={<ClipboardList className="h-5 w-5" />}>
-          <div className="grid grid-cols-5 items-start gap-2 text-center text-[11px] font-bold">
-            {statusSteps.map((step, index) => {
-              const active = index <= currentStage;
-              return (
-                <div key={step} className="relative">
-                  {index > 0 ? <span className="absolute right-1/2 top-4 h-px w-full border-t border-dashed border-slate-500" /> : null}
-                  <span
-                    className={`relative z-10 mx-auto grid h-8 w-8 place-items-center rounded-full border-2 bg-white ${
-                      active ? "border-[#8b0f32] text-[#8b0f32]" : "border-slate-400 text-slate-400"
-                    }`}
-                  >
-                    {active ? <Check className="h-5 w-5" /> : null}
-                  </span>
-                  <p className={active ? maroonText : "text-slate-500"}>{step}</p>
-                </div>
-              );
-            })}
-          </div>
         </Box>
       </div>
 
